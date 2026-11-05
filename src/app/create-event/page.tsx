@@ -1,6 +1,5 @@
 "use client";
-
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import {
   PlusCircle,
@@ -49,14 +48,6 @@ const EVENT_TYPES = [
   { value: "other", label: "✨ Other" },
 ];
 
-function getTodayString() {
-  const now = new Date();
-  const yyyy = now.getFullYear();
-  const mm = String(now.getMonth() + 1).padStart(2, "0");
-  const dd = String(now.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
-}
-
 function getTomorrowString() {
   const d = new Date();
   d.setDate(d.getDate() + 1);
@@ -87,6 +78,8 @@ const INITIAL_FORM: FormState = {
 
 
 
+const emptySubscribe = () => () => {};
+
 export default function CreateEventPage() {
   const router = useRouter();
   const { data: session, isPending } = useSession();
@@ -94,7 +87,12 @@ export default function CreateEventPage() {
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  /* Redirect unauthenticated users to login */
+  const minDate = useSyncExternalStore(
+    emptySubscribe,
+    getTomorrowString,
+    () => ""
+  );
+
   useEffect(() => {
     if (!isPending && !session) {
       notify.error("Authentication Required", "Please sign in to create an event.");
@@ -197,9 +195,6 @@ export default function CreateEventPage() {
       </div>
     );
   }
-
-  const tomorrow = getTomorrowString();
-  const today = getTodayString();
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-gradient-to-br from-emerald-50/60 via-background to-background dark:from-emerald-950/20 dark:via-background dark:to-background">
@@ -341,14 +336,14 @@ export default function CreateEventPage() {
                     type="date"
                     value={form.eventDate}
                     onChange={(e) => setField("eventDate", e.target.value)}
-                    min={tomorrow}
-                    max={`${new Date().getFullYear() + 2}-12-31`}
+                    min={minDate || undefined}
+                    max="2030-12-31"
                     disabled={isSubmitting}
                     required
                     className="h-10"
                   />
                   <p className="text-[11px] text-muted-foreground">
-                    Must be a future date (from {tomorrow})
+                    Must be a future date {minDate ? `(from ${minDate})` : ""}
                   </p>
                 </div>
 
@@ -395,7 +390,6 @@ export default function CreateEventPage() {
                 </div>
               )}
 
-              {/* ── Creator Info (read-only) ── */}
               <div className="rounded-xl border border-emerald-700/20 bg-emerald-50/60 px-4 py-3 dark:bg-emerald-950/20">
                 <p className="text-xs text-muted-foreground">
                   <span className="font-semibold text-emerald-800 dark:text-emerald-300">
@@ -437,8 +431,6 @@ export default function CreateEventPage() {
                   )}
                 </Button>
               </div>
-
-              <input type="hidden" value={today} />
             </form>
           </CardContent>
         </Card>

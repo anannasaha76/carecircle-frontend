@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import "./globals.css";
 import ThemeProvider from "@/components/providers/ThemeProvider";
 import Navbar from "@/components/shared/Navbar";
@@ -19,7 +20,9 @@ export default function RootLayout({
       <body className="min-h-screen bg-background font-sans antialiased text-foreground">
         <ThemeProvider>
           <Toaster />
-          <Navbar />
+          <Suspense fallback={<div className="h-16 border-b bg-background/95" />}>
+            <Navbar />
+          </Suspense>
           <main className="min-h-[calc(100vh-4rem)]">{children}</main>
         </ThemeProvider>
       </body>
