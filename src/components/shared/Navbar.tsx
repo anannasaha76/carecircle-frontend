@@ -91,12 +91,7 @@ const privateLinks = [
 
 const emptySubscribe = () => () => { };
 
-/**
- * Resilient UserAvatar component:
- * Directly renders native <img> with referrerPolicy="no-referrer" to prevent
- * CORS / hotlinking blocks from third-party image hosts.
- * Automatically falls back to user initials if the URL fails to load.
- */
+
 function UserAvatar({
   src,
   alt,
