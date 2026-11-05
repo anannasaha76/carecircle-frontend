@@ -1,5 +1,4 @@
 "use client";
-
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useSyncExternalStore } from "react";
@@ -28,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -89,7 +89,7 @@ const privateLinks = [
   },
 ];
 
-const emptySubscribe = () => () => {};
+const emptySubscribe = () => () => { };
 
 /**
  * Resilient UserAvatar component:
@@ -259,9 +259,8 @@ export default function Navbar() {
                 <Link
                   key={link.href}
                   href={link.href}
-                  className={`flex items-center gap-2 text-sm font-medium transition-colors hover:text-emerald-700 ${
-                    active ? "text-emerald-700 font-semibold" : "text-muted-foreground"
-                  }`}
+                  className={`flex items-center gap-2 text-sm font-medium transition-colors hover:text-emerald-700 ${active ? "text-emerald-700 font-semibold" : "text-muted-foreground"
+                    }`}
                 >
                   <Icon className="h-4 w-4" />
                   {link.name}
@@ -290,37 +289,36 @@ export default function Navbar() {
             {/* Conditional Auth Rendering */}
             {session?.user ? (
               <div className="flex items-center gap-3">
-                {/* Profile Avatar with Tooltip on Hover & Dropdown Menu */}
+                {/* Profile Avatar — Tooltip wraps the DropdownMenu trigger */}
                 <TooltipProvider delay={200}>
-                  <Tooltip>
-                    <DropdownMenu>
-                      <TooltipTrigger
-                        render={
-                          <DropdownMenuTrigger
-                            render={
-                              <button
-                                type="button"
-                                className="relative flex items-center justify-center rounded-full ring-2 ring-emerald-700/30 transition-all hover:ring-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-700 cursor-pointer"
-                                aria-label="User profile menu"
-                              />
-                            }
+                  <DropdownMenu>
+                    <Tooltip>
+                      <TooltipTrigger render={<span className="inline-flex" />}>
+                        <DropdownMenuTrigger
+                          render={
+                            <button
+                              type="button"
+                              className="relative flex items-center justify-center rounded-full ring-2 ring-emerald-700/30 transition-all hover:ring-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-700 cursor-pointer"
+                              aria-label="User profile menu"
+                            />
+                          }
+                        >
+                          <UserAvatar
+                            key={userPhoto || "default"}
+                            src={userPhoto}
+                            alt={session.user.name || "User avatar"}
+                            fallback={userInitial}
+                            className="h-9 w-9"
                           />
-                        }
-                      >
-                        <UserAvatar
-                          key={userPhoto || "default"}
-                          src={userPhoto}
-                          alt={session.user.name || "User avatar"}
-                          fallback={userInitial}
-                          className="h-9 w-9"
-                        />
+                        </DropdownMenuTrigger>
                       </TooltipTrigger>
-
                       <TooltipContent side="bottom" align="center">
                         <p className="font-medium">{session.user.name || "My Account"}</p>
                       </TooltipContent>
+                    </Tooltip>
 
-                      <DropdownMenuContent align="end" className="w-60 mt-2">
+                    <DropdownMenuContent align="end" className="w-60 mt-2">
+                      <DropdownMenuGroup>
                         <DropdownMenuLabel className="font-normal">
                           <div className="flex items-center gap-2.5 pb-1">
                             <UserAvatar
@@ -340,9 +338,11 @@ export default function Navbar() {
                             </div>
                           </div>
                         </DropdownMenuLabel>
+                      </DropdownMenuGroup>
 
-                        <DropdownMenuSeparator />
+                      <DropdownMenuSeparator />
 
+                      <DropdownMenuGroup>
                         <DropdownMenuItem
                           onClick={openEditProfile}
                           className="cursor-pointer flex items-center gap-2 font-medium text-emerald-700 focus:text-emerald-800"
@@ -350,9 +350,11 @@ export default function Navbar() {
                           <UserPen className="h-4 w-4" />
                           <span>Update Profile</span>
                         </DropdownMenuItem>
+                      </DropdownMenuGroup>
 
-                        <DropdownMenuSeparator />
+                      <DropdownMenuSeparator />
 
+                      <DropdownMenuGroup>
                         {privateLinks.map((item) => {
                           const Icon = item.icon;
                           return (
@@ -366,9 +368,11 @@ export default function Navbar() {
                             </DropdownMenuItem>
                           );
                         })}
+                      </DropdownMenuGroup>
 
-                        <DropdownMenuSeparator />
+                      <DropdownMenuSeparator />
 
+                      <DropdownMenuGroup>
                         <DropdownMenuItem
                           onClick={handleLogout}
                           className="cursor-pointer text-destructive focus:text-destructive flex items-center gap-2"
@@ -376,9 +380,9 @@ export default function Navbar() {
                           <LogOut className="h-4 w-4" />
                           <span>Log Out</span>
                         </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </Tooltip>
+                      </DropdownMenuGroup>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </TooltipProvider>
 
                 {/* Explicit Desktop Logout Button */}
@@ -514,11 +518,10 @@ export default function Navbar() {
                           key={link.href}
                           href={link.href}
                           onClick={() => setMobileOpen(false)}
-                          className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors hover:bg-muted ${
-                            active
+                          className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors hover:bg-muted ${active
                               ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 font-semibold"
                               : "text-muted-foreground"
-                          }`}
+                            }`}
                         >
                           <Icon className="h-5 w-5" />
                           {link.name}
@@ -542,11 +545,10 @@ export default function Navbar() {
                             key={item.href}
                             href={item.href}
                             onClick={() => setMobileOpen(false)}
-                            className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors hover:bg-muted ${
-                              active
+                            className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors hover:bg-muted ${active
                                 ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 font-semibold"
                                 : "text-muted-foreground"
-                            }`}
+                              }`}
                           >
                             <Icon className="h-5 w-5 text-emerald-700" />
                             {item.name}
