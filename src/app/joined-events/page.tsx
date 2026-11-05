@@ -19,6 +19,7 @@ import {
 
 import { useSession } from "@/lib/auth-client";
 import { notify } from "@/lib/notify";
+import { getTokenFromClient } from "@/lib/getTokenFromClient";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -110,9 +111,13 @@ export default function JoinedEventsPage() {
     setLoading(true);
     setError(null);
     try {
+      const token = await getTokenFromClient();
       const res = await fetch(
         `${apiUrl}/joined-events?email=${encodeURIComponent(session.user.email)}`,
-        { cache: "no-store" }
+        {
+          cache: "no-store",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        }
       );
       if (!res.ok) {
         throw new Error(`Failed to load joined events (Status: ${res.status})`);
@@ -139,9 +144,13 @@ export default function JoinedEventsPage() {
       if (!session?.user?.email) return;
       setError(null);
       try {
+        const token = await getTokenFromClient();
         const res = await fetch(
           `${apiUrl}/joined-events?email=${encodeURIComponent(session.user.email)}`,
-          { cache: "no-store" }
+          {
+            cache: "no-store",
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          }
         );
         if (!res.ok) {
           throw new Error(`Failed to load joined events (Status: ${res.status})`);
@@ -186,11 +195,15 @@ export default function JoinedEventsPage() {
 
     setCancellingId(item._id);
     try {
+      const token = await getTokenFromClient();
       const res = await fetch(
         `${apiUrl}/joined-events/${item._id}?email=${encodeURIComponent(
           session.user.email
         )}`,
-        { method: "DELETE" }
+        {
+          method: "DELETE",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        }
       );
       const data = await res.json();
 

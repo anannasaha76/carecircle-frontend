@@ -19,6 +19,7 @@ import {
 
 import { useSession } from "@/lib/auth-client";
 import { notify } from "@/lib/notify";
+import { getTokenFromClient } from "@/lib/getTokenFromClient";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -174,9 +175,13 @@ function EventDetailsContent({
 
     setIsJoining(true);
     try {
+      const token = await getTokenFromClient();
       const res = await fetch(`${apiUrl}/events/${eventId}/join`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           userEmail: session.user.email,
           userName: session.user.name || null,

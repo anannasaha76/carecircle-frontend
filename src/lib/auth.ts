@@ -1,6 +1,7 @@
 import { betterAuth } from "better-auth";
 import { MongoClient } from "mongodb";
 import { mongodbAdapter } from "@better-auth/mongo-adapter";
+import { jwt } from "better-auth/plugins";
 
 const uri = process.env.MONGODB_URI || "mongodb://localhost:27017/carecircle";
 const client = new MongoClient(uri);
@@ -42,4 +43,13 @@ export const auth = betterAuth({
   database: mongodbAdapter(db, {
     client,
   }),
+  plugins: [jwt()],
+  session: {
+    cookieCache: {
+      enabled: true,
+      strategy: "jwt",
+      maxAge: 20 * 24 * 60 * 60,
+    },
+  },
 });
+

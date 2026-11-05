@@ -21,6 +21,7 @@ import {
 
 import { useSession } from "@/lib/auth-client";
 import { notify } from "@/lib/notify";
+import { getTokenFromClient } from "@/lib/getTokenFromClient";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -153,9 +154,13 @@ export default function ManageEventsPage() {
     setLoading(true);
     setError(null);
     try {
+      const token = await getTokenFromClient();
       const res = await fetch(
         `${apiUrl}/my-events?email=${encodeURIComponent(session.user.email)}`,
-        { cache: "no-store" }
+        {
+          cache: "no-store",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        }
       );
       if (!res.ok) {
         throw new Error(`Failed to load your events (Status: ${res.status})`);
@@ -182,9 +187,13 @@ export default function ManageEventsPage() {
       if (!session?.user?.email) return;
       setError(null);
       try {
+        const token = await getTokenFromClient();
         const res = await fetch(
           `${apiUrl}/my-events?email=${encodeURIComponent(session.user.email)}`,
-          { cache: "no-store" }
+          {
+            cache: "no-store",
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          }
         );
         if (!res.ok) {
           throw new Error(`Failed to load your events (Status: ${res.status})`);
@@ -277,9 +286,13 @@ export default function ManageEventsPage() {
     };
 
     try {
+      const token = await getTokenFromClient();
       const res = await fetch(`${apiUrl}/events/${editingEvent._id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify(payload),
       });
       const data = await res.json();
@@ -321,11 +334,15 @@ export default function ManageEventsPage() {
     setIsDeleting(true);
 
     try {
+      const token = await getTokenFromClient();
       const res = await fetch(
         `${apiUrl}/events/${event._id}?email=${encodeURIComponent(
           session.user.email
         )}`,
-        { method: "DELETE" }
+        {
+          method: "DELETE",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        }
       );
       const data = await res.json();
 

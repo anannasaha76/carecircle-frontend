@@ -15,6 +15,7 @@ import {
 
 import { useSession } from "@/lib/auth-client";
 import { notify } from "@/lib/notify";
+import { getTokenFromClient } from "@/lib/getTokenFromClient";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -160,11 +161,15 @@ export default function CreateEventPage() {
     };
 
     try {
+      const token = await getTokenFromClient();
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/events`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
           body: JSON.stringify(payload),
         }
       );
