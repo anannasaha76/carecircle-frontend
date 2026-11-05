@@ -86,11 +86,13 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
+      const photo = photoURL.trim() || undefined;
       const res = await signUp.email({
         name: name.trim(),
         email: email.trim().toLowerCase(),
         password,
-        image: photoURL.trim() || undefined,
+        image: photo,
+        photoURL: photo,
       });
 
       if (res.error) {

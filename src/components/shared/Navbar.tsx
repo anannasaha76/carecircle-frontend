@@ -23,7 +23,6 @@ import { useSession, signOut } from "@/lib/auth-client";
 import { notify } from "@/lib/notify";
 
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -80,6 +79,51 @@ const privateLinks = [
 
 const emptySubscribe = () => () => {};
 
+/**
+ * Resilient UserAvatar component:
+ * Directly renders native <img> with referrerPolicy="no-referrer" to prevent
+ * CORS / hotlinking blocks from third-party image hosts.
+ * Automatically falls back to user initials if the URL fails to load.
+ */
+function UserAvatar({
+  src,
+  alt,
+  fallback,
+  className = "h-9 w-9",
+}: {
+  src?: string | null;
+  alt?: string;
+  fallback: string;
+  className?: string;
+}) {
+  const [hasError, setHasError] = useState(false);
+
+  if (src && !hasError) {
+    return (
+      <div
+        className={`relative ${className} shrink-0 overflow-hidden rounded-full border border-emerald-700/30 bg-muted shadow-sm`}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={src}
+          alt={alt || "User profile photo"}
+          className="h-full w-full object-cover"
+          referrerPolicy="no-referrer"
+          onError={() => setHasError(true)}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`flex ${className} shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-800 font-semibold text-sm shadow-sm dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-700/20`}
+    >
+      {fallback}
+    </div>
+  );
+}
+
 export default function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -115,6 +159,12 @@ export default function Navbar() {
   const userInitial = session?.user?.name
     ? session.user.name.charAt(0).toUpperCase()
     : session?.user?.email?.charAt(0).toUpperCase() || "U";
+
+  // Check both `image` and `photoURL` on the user session
+  const userPhoto =
+    session?.user?.image ||
+    (session?.user as { photoURL?: string })?.photoURL ||
+    null;
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur-md">
@@ -186,24 +236,20 @@ export default function Navbar() {
                           render={
                             <button
                               type="button"
-                              className="relative flex items-center justify-center rounded-full ring-2 ring-emerald-700/30 transition-all hover:ring-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                              className="relative flex items-center justify-center rounded-full ring-2 ring-emerald-700/30 transition-all hover:ring-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-700 cursor-pointer"
                               aria-label="User profile menu"
                             />
                           }
                         />
                       }
                     >
-                      <Avatar className="h-9 w-9 cursor-pointer">
-                        {session.user.image ? (
-                          <AvatarImage
-                            src={session.user.image}
-                            alt={session.user.name || "User avatar"}
-                          />
-                        ) : null}
-                        <AvatarFallback className="bg-emerald-100 text-emerald-800 font-semibold">
-                          {userInitial}
-                        </AvatarFallback>
-                      </Avatar>
+                      <UserAvatar
+                        key={userPhoto || "default"}
+                        src={userPhoto}
+                        alt={session.user.name || "User avatar"}
+                        fallback={userInitial}
+                        className="h-9 w-9"
+                      />
                     </TooltipTrigger>
 
                     <TooltipContent side="bottom" align="center">
@@ -212,13 +258,22 @@ export default function Navbar() {
 
                     <DropdownMenuContent align="end" className="w-56 mt-2">
                       <DropdownMenuLabel className="font-normal">
-                        <div className="flex flex-col space-y-1">
-                          <p className="text-sm font-semibold leading-none">
-                            {session.user.name || "User"}
-                          </p>
-                          <p className="text-xs leading-none text-muted-foreground truncate">
-                            {session.user.email}
-                          </p>
+                        <div className="flex items-center gap-2.5 pb-1">
+                          <UserAvatar
+                            key={userPhoto || "menu-default"}
+                            src={userPhoto}
+                            alt={session.user.name || "User avatar"}
+                            fallback={userInitial}
+                            className="h-8 w-8"
+                          />
+                          <div className="flex flex-col min-w-0">
+                            <p className="text-sm font-semibold leading-none truncate">
+                              {session.user.name || "User"}
+                            </p>
+                            <p className="text-xs leading-none text-muted-foreground truncate mt-1">
+                              {session.user.email}
+                            </p>
+                          </div>
                         </div>
                       </DropdownMenuLabel>
 
@@ -339,17 +394,13 @@ export default function Navbar() {
                 {/* Mobile User Profile Section */}
                 {session?.user ? (
                   <div className="rounded-xl border border-border/60 bg-muted/40 p-3 flex items-center gap-3">
-                    <Avatar className="h-10 w-10">
-                      {session.user.image ? (
-                        <AvatarImage
-                          src={session.user.image}
-                          alt={session.user.name || "User"}
-                        />
-                      ) : null}
-                      <AvatarFallback className="bg-emerald-100 text-emerald-800 font-semibold">
-                        {userInitial}
-                      </AvatarFallback>
-                    </Avatar>
+                    <UserAvatar
+                      key={userPhoto || "mobile-default"}
+                      src={userPhoto}
+                      alt={session.user.name || "User"}
+                      fallback={userInitial}
+                      className="h-10 w-10"
+                    />
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-semibold truncate">
                         {session.user.name || "User"}

@@ -14,3 +14,4 @@ export const notify = {
     toast.add({ title, description, type: "warning" });
   },
 };
+
