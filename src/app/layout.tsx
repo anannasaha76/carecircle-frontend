@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import "./globals.css";
 import ThemeProvider from "@/components/providers/ThemeProvider";
 import Navbar from "@/components/shared/Navbar";
+import Footer from "@/components/shared/Footer";
 import { Toaster } from "@/components/ui/toast";
 
 export const metadata: Metadata = {
@@ -24,6 +25,7 @@ export default function RootLayout({
             <Navbar />
           </Suspense>
           <main className="min-h-[calc(100vh-4rem)]">{children}</main>
+          <Footer />
         </ThemeProvider>
       </body>
     </html>
