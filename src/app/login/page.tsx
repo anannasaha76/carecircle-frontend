@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from "next/link";
@@ -129,16 +128,16 @@ export default function LoginPage() {
   const isBusy = isLoading || isSocialLoading !== null;
 
   return (
-    <main className="relative flex min-h-[calc(100vh-4rem)] items-center justify-center overflow-hidden bg-muted/30 px-4 py-12 sm:px-6 lg:px-8">
+    <main className="relative flex min-h-[calc(100dvh-4rem)] items-center justify-center overflow-hidden bg-muted/30 px-3 py-6 sm:px-6 sm:py-10 lg:px-8 lg:py-12">
 
       {/* Background decoration */}
-      <div className="pointer-events-none absolute -left-32 -top-32 h-80 w-80 rounded-full bg-emerald-500/10 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-32 -right-32 h-96 w-96 rounded-full bg-teal-500/10 blur-3xl" />
+      <div className="pointer-events-none absolute -left-32 -top-32 h-60 w-60 rounded-full bg-emerald-500/10 blur-3xl sm:h-80 sm:w-80" />
+      <div className="pointer-events-none absolute -bottom-32 -right-32 h-72 w-72 rounded-full bg-teal-500/10 blur-3xl sm:h-96 sm:w-96" />
 
       {/* Main container */}
-      <div className="relative grid w-full max-w-5xl overflow-hidden rounded-3xl border border-border/60 bg-card shadow-2xl lg:grid-cols-2">
+      <div className="relative grid w-full max-w-md overflow-hidden rounded-2xl border border-border/60 bg-card shadow-xl sm:max-w-lg sm:rounded-3xl sm:shadow-2xl lg:max-w-5xl lg:grid-cols-2">
 
-        {/* Left branding section */}
+        {/* Left branding section (desktop only) */}
         <div className="relative hidden flex-col justify-between overflow-hidden bg-emerald-950 p-10 text-white lg:flex">
 
           <div className="absolute -right-24 -top-24 h-80 w-80 rounded-full border border-white/10" />
@@ -205,33 +204,30 @@ export default function LoginPage() {
         </div>
 
         {/* Right login section */}
-        <div className="flex items-center justify-center bg-card p-6 sm:p-10 lg:p-12">
+        <div className="flex items-center justify-center bg-card px-5 py-8 sm:px-10 sm:py-10 lg:p-12">
 
-          {/* Width constrained wrapper */}
-          <div className="mx-auto w-full max-w-[400px] px-3 sm:px-4">
+          <div className="mx-auto w-full max-w-[400px]">
 
-            {/* Mobile branding */}
-            <div className="mb-8 flex items-center justify-center gap-3 lg:hidden">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-700 text-white shadow-md">
-                <CareCircleLogo className="h-7 w-7" />
+            {/* Mobile / tablet branding */}
+            <div className="mb-6 flex items-center justify-center gap-3 sm:mb-8 lg:hidden">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-700 text-white shadow-md sm:h-12 sm:w-12">
+                <CareCircleLogo className="h-6 w-6 sm:h-7 sm:w-7" />
               </div>
 
-              <div>
-                <h2 className="text-xl font-bold">CareCircle</h2>
+              <div className="min-w-0">
+                <h2 className="text-lg font-bold sm:text-xl">CareCircle</h2>
                 <p className="text-xs text-muted-foreground">
                   Together, We Make a Difference
                 </p>
               </div>
             </div>
 
-            {/* Inner form card */}
-            <div className="w-full rounded-2xl border border-border/70 bg-card p-6 shadow-sm sm:p-8">
+            {/* Form wrapper: flat on mobile, card from sm up (flat again inside desktop split) */}
+            <div className="w-full sm:rounded-2xl sm:border sm:border-border/70 sm:bg-card sm:p-8 sm:shadow-sm lg:border-0 lg:p-0 lg:shadow-none">
 
               {/* Heading */}
-              <div className="mb-7 space-y-3 text-center lg:text-left">
-
-
-                <h2 className="text-3xl font-bold tracking-tight">
+              <div className="mb-6 space-y-2 text-center sm:mb-7 sm:space-y-3 lg:text-left">
+                <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
                   Welcome back!
                 </h2>
 
@@ -241,7 +237,7 @@ export default function LoginPage() {
                 </p>
               </div>
 
-              <form onSubmit={handleSubmit} className="w-full space-y-5">
+              <form onSubmit={handleSubmit} className="w-full space-y-4 sm:space-y-5">
 
                 {/* Email */}
                 <div className="w-full space-y-2">
@@ -250,18 +246,19 @@ export default function LoginPage() {
                   </Label>
 
                   <div className="relative w-full">
-                    <Mail className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
 
                     <Input
                       id="email"
                       type="email"
+                      inputMode="email"
                       required
                       autoComplete="email"
                       placeholder="you@example.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       disabled={isBusy}
-                      className="h-12 w-full rounded-xl border-border/70 bg-background pl-10 focus-visible:border-emerald-600 focus-visible:ring-emerald-600/20"
+                      className="h-12 w-full rounded-xl border-border/70 bg-background pl-10 text-base focus-visible:border-emerald-600 focus-visible:ring-emerald-600/20 sm:text-sm"
                     />
                   </div>
                 </div>
@@ -273,7 +270,7 @@ export default function LoginPage() {
                   </Label>
 
                   <div className="relative w-full">
-                    <Lock className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
 
                     <Input
                       id="password"
@@ -284,7 +281,7 @@ export default function LoginPage() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       disabled={isBusy}
-                      className="h-12 w-full rounded-xl border-border/70 bg-background pl-10 pr-11 focus-visible:border-emerald-600 focus-visible:ring-emerald-600/20"
+                      className="h-12 w-full rounded-xl border-border/70 bg-background pl-10 pr-12 text-base focus-visible:border-emerald-600 focus-visible:ring-emerald-600/20 sm:text-sm"
                     />
 
                     <button
@@ -292,7 +289,7 @@ export default function LoginPage() {
                       onClick={() => setShowPassword(!showPassword)}
                       disabled={isBusy}
                       aria-label={showPassword ? "Hide password" : "Show password"}
-                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                      className="absolute right-1 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground"
                     >
                       {showPassword ? (
                         <EyeOff className="h-4 w-4" />
@@ -326,7 +323,7 @@ export default function LoginPage() {
                 <div className="flex w-full items-center gap-3">
                   <div className="h-px flex-1 bg-border" />
 
-                  <span className="shrink-0 text-xs font-medium text-muted-foreground">
+                  <span className="shrink-0 text-[11px] font-medium text-muted-foreground sm:text-xs">
                     OR CONTINUE WITH
                   </span>
 
@@ -374,19 +371,19 @@ export default function LoginPage() {
                 </Button>
 
                 {/* Register */}
-                <p className="pt-2 text-center text-sm text-muted-foreground">
+                <p className="pt-1 text-center text-sm text-muted-foreground sm:pt-2">
                   Don&apos;t have an account?{" "}
                   <Link
                     href={`/register${typeof window !== "undefined" ? window.location.search : ""}`}
-                    className="font-bold text-emerald-700 transition-colors hover:text-emerald-800 hover:underline"
+                    className="inline-block py-1 font-bold text-emerald-700 transition-colors hover:text-emerald-800 hover:underline"
                   >
                     Create an account
                   </Link>
                 </p>
 
                 {/* Security */}
-                <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-                  <ShieldCheck className="h-4 w-4 text-emerald-700" />
+                <div className="flex items-center justify-center gap-2 text-center text-xs text-muted-foreground">
+                  <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-700" />
                   Secure authentication powered by CareCircle
                 </div>
 
