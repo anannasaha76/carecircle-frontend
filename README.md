@@ -1,36 +1,32 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# CareCircle
 
-## Getting Started
+CareCircle is a community-driven social development platform that connects passionate individuals with meaningful social service initiatives. Users can discover community events, organize social activities, participate in volunteer programs, and contribute to making a positive difference in society.
 
-First, run the development server:
+**Live Website:** [https://carecircle-frontend.vercel.app/]
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## ✨ Key Features
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- **Explore Community Events:** Browse social development events from different locations across Bangladesh.
+- **Create Events:** Authenticated users can organize social initiatives by providing event details, categories, locations, dates, and thumbnail images.
+- **Join Events:** Users can participate in events and contribute to meaningful community activities.
+- **Manage Your Events:** Organizers can view, edit, and delete the events they have created.
+- **Event Categories:** Discover initiatives such as cleanup campaigns, tree plantations, food drives, donations, medical camps, and educational programs.
+- **Authentication System:** Secure user registration and login with session-based authentication.
+- **Event Details:** View detailed event information, including descriptions, locations, dates, and participant counts.
+- **Responsive Design:** Enjoy a seamless experience across desktop, tablet, and mobile devices.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 🛠️ Technologies Used
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- Next.js
+- React
+- TypeScript
+- Tailwind CSS
+- Shadcn UI
+- Lucide React
+- Better Auth
 
-## Learn More
+## 🎯 Project Purpose
 
-To learn more about Next.js, take a look at the following resources:
+CareCircle aims to encourage community participation, promote social responsibility, and make it easier for people to discover and participate in initiatives that create meaningful social impact.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+**Together, we can build stronger communities and make every small act of kindness count!** ❤️
