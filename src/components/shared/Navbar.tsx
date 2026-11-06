@@ -1,20 +1,22 @@
+
 "use client";
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useSyncExternalStore } from "react";
 import {
-  CalendarDays,
+  CalendarCheck,
   Home,
   Menu,
   Sun,
   Moon,
-  PlusCircle,
-  FolderKanban,
-  CheckCircle2,
+  CalendarPlus,
+  BriefcaseBusiness,
+  Users,
   LogOut,
-  LogIn,
+  DoorOpen,
   User as UserIcon,
+  UserPlus,
   UserPen,
   Loader2,
 } from "lucide-react";
@@ -68,7 +70,7 @@ const navLinks = [
   {
     name: "Upcoming Events",
     href: "/upcoming-events",
-    icon: CalendarDays,
+    icon: CalendarCheck,
   },
 ];
 
@@ -76,17 +78,17 @@ const privateLinks = [
   {
     name: "Create Event",
     href: "/create-event",
-    icon: PlusCircle,
+    icon: CalendarPlus,
   },
   {
     name: "Manage Events",
     href: "/manage-events",
-    icon: FolderKanban,
+    icon: BriefcaseBusiness,
   },
   {
     name: "Joined Events",
     href: "/joined-events",
-    icon: CheckCircle2,
+    icon: Users,
   },
 ];
 
@@ -236,7 +238,7 @@ export default function Navbar() {
     ? session.user.name.charAt(0).toUpperCase()
     : session?.user?.email?.charAt(0).toUpperCase() || "U";
 
-  // Check both `image` and `photoURL` on the user session
+  // Check both image and photoURL on the user session
   const userPhoto =
     session?.user?.image ||
     (session?.user as { photoURL?: string })?.photoURL ||
@@ -273,8 +275,8 @@ export default function Navbar() {
                   key={link.href}
                   href={link.href}
                   className={`flex items-center gap-2 text-sm font-medium transition-colors hover:text-emerald-700 ${active
-                      ? "text-emerald-700 font-semibold"
-                      : "text-muted-foreground"
+                    ? "text-emerald-700 font-semibold"
+                    : "text-muted-foreground"
                     }`}
                 >
                   <Icon className="h-4 w-4" />
@@ -397,14 +399,14 @@ export default function Navbar() {
                   </DropdownMenu>
                 </TooltipProvider>
 
-                {/* Explicit Desktop Logout Button */}
+                {/* Redesigned Desktop Logout Button */}
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={handleLogout}
-                  className="gap-1.5 text-xs font-medium border-border/80 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30"
+                  className="group gap-2 rounded-full border-red-200 bg-red-50 px-4 font-semibold text-red-600 shadow-sm transition-all hover:border-red-300 hover:bg-red-100 hover:text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-950/60"
                 >
-                  <LogOut className="h-3.5 w-3.5" />
+                  <LogOut className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
                   Logout
                 </Button>
               </div>
@@ -415,7 +417,7 @@ export default function Navbar() {
                     size="sm"
                     className="bg-emerald-700 hover:bg-emerald-800 text-white font-medium gap-1.5"
                   >
-                    <LogIn className="h-4 w-4" />
+                    <DoorOpen className="h-4 w-4" />
                     Login
                   </Button>
                 </Link>
@@ -424,8 +426,9 @@ export default function Navbar() {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="font-medium border-border/80"
+                    className="font-medium border-emerald-700/30 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 dark:hover:bg-emerald-950/40 gap-1.5"
                   >
+                    <UserPlus className="h-4 w-4" />
                     Register
                   </Button>
                 </Link>
@@ -542,8 +545,8 @@ export default function Navbar() {
                           href={link.href}
                           onClick={() => setMobileOpen(false)}
                           className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors hover:bg-muted ${active
-                              ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 font-semibold"
-                              : "text-muted-foreground"
+                            ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 font-semibold"
+                            : "text-muted-foreground"
                             }`}
                         >
                           <Icon className="h-5 w-5" />
@@ -570,8 +573,8 @@ export default function Navbar() {
                             href={item.href}
                             onClick={() => setMobileOpen(false)}
                             className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors hover:bg-muted ${active
-                                ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 font-semibold"
-                                : "text-muted-foreground"
+                              ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 font-semibold"
+                              : "text-muted-foreground"
                               }`}
                           >
                             <Icon className="h-5 w-5 text-emerald-700" />
@@ -588,9 +591,9 @@ export default function Navbar() {
                       <Button
                         variant="outline"
                         onClick={handleLogout}
-                        className="w-full text-destructive border-destructive/20 hover:bg-destructive/10 justify-center gap-2"
+                        className="group w-full justify-center gap-2 rounded-xl border-red-200 bg-red-50 py-5 font-semibold text-red-600 shadow-sm transition-all hover:border-red-300 hover:bg-red-100 hover:text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-950/60"
                       >
-                        <LogOut className="h-4 w-4" />
+                        <LogOut className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
                         Log Out
                       </Button>
                     ) : (
@@ -600,7 +603,7 @@ export default function Navbar() {
                           onClick={() => setMobileOpen(false)}
                         >
                           <Button className="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-medium justify-center gap-2">
-                            <LogIn className="h-4 w-4" />
+                            <DoorOpen className="h-4 w-4" />
                             Sign In
                           </Button>
                         </Link>
@@ -611,9 +614,9 @@ export default function Navbar() {
                         >
                           <Button
                             variant="outline"
-                            className="w-full font-medium justify-center gap-2"
+                            className="w-full font-medium justify-center gap-2 border-emerald-700/30 text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
                           >
-                            <UserIcon className="h-4 w-4" />
+                            <UserPlus className="h-4 w-4" />
                             Register
                           </Button>
                         </Link>
@@ -693,8 +696,8 @@ export default function Navbar() {
               />
 
               <p className="text-[11px] text-muted-foreground">
-                Tip: Must be a direct image link (e.g. from Unsplash or ending
-                in .jpg/.png), not an HTML website page.
+                Tip: Must be a direct image link (e.g.ending
+                in .jpg/.png).
               </p>
             </div>
 

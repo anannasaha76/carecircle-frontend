@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -7,18 +8,21 @@ import {
   CalendarDays,
   MapPin,
   ArrowRight,
+  ArrowUpRight,
   Tag,
   Users,
   Sparkles,
   ShieldCheck,
   TrendingUp,
   Globe2,
-  Send,
   PlusCircle,
   AlertCircle,
   RefreshCw,
   Camera,
+  Mail,
 } from "lucide-react";
+
+import { useSession } from "@/lib/auth-client";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -34,7 +38,7 @@ import { Input } from "@/components/ui/input";
 import type { EventItem } from "@/app/upcoming-events/page";
 
 /* ------------------------------------------------------------------ */
-/* Static Data for Gallery & Features                                 */
+/* Static Data                                                         */
 /* ------------------------------------------------------------------ */
 
 const DEFAULT_EVENT_IMAGE =
@@ -49,21 +53,21 @@ const FEATURES = [
   },
   {
     icon: Users,
-    title: "1-Click Volunteer Join",
+    title: "Easy Volunteer Joining",
     description:
-      "Join events instantly with your account. Keep track of all events you are attending in your personalized volunteer dashboard.",
+      "Discover meaningful events and join instantly. Keep track of the activities you are attending through your personalized dashboard.",
   },
   {
     icon: ShieldCheck,
-    title: "Verified Event Ownership",
+    title: "Secure Event Management",
     description:
-      "Organizers maintain direct responsibility for their causes, with complete freedom to update details or manage registrations securely.",
+      "Organizers maintain responsibility for their causes, with the ability to update event details and manage registrations securely.",
   },
   {
     icon: TrendingUp,
-    title: "Transparent Social Impact",
+    title: "Real Community Impact",
     description:
-      "Every attendee counts. Real-time participant counters showcase the collective strength of neighbors helping neighbors.",
+      "Every volunteer counts. Participant counters showcase the collective strength of neighbors helping neighbors.",
   },
 ];
 
@@ -77,7 +81,7 @@ const GALLERY_PHOTOS = [
   },
   {
     title: "Urban Tree Plantation Drive",
-    location: "Mirpur 10, Dhaka",
+    location: "Rajshahi Sadar, Rajshahi",
     category: "Plantation",
     image:
       "https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?auto=format&fit=crop&w=800&q=80",
@@ -91,21 +95,21 @@ const GALLERY_PHOTOS = [
   },
   {
     title: "Nutritious Food Drive for Children",
-    location: "Tejgaon, Dhaka",
+    location: "Zindabazar, Sylhet",
     category: "Food Drive",
     image:
       "https://images.unsplash.com/photo-1593113598332-cd288d649433?auto=format&fit=crop&w=800&q=80",
   },
   {
     title: "Free Community Health & Medical Camp",
-    location: "Uttara Sector 7, Dhaka",
+    location: "Sadar Road, Barishal",
     category: "Medical",
     image:
       "https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&w=800&q=80",
   },
   {
     title: "Weekend Youth Mentorship & Books",
-    location: "Badda, Dhaka",
+    location: "Cox's Bazar Sadar, Cox's Bazar",
     category: "Education",
     image:
       "https://images.unsplash.com/photo-1524178232363-1fb2b075b655?auto=format&fit=crop&w=800&q=80",
@@ -115,7 +119,9 @@ const GALLERY_PHOTOS = [
 function formatEventDate(dateString: string) {
   try {
     const [year, month, day] = dateString.split("-").map(Number);
+
     const date = new Date(year, month - 1, day);
+
     return date.toLocaleDateString("en-US", {
       weekday: "short",
       month: "short",
@@ -128,10 +134,12 @@ function formatEventDate(dateString: string) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Home Page Component                                                */
+/* Home Page Component                                                 */
 /* ------------------------------------------------------------------ */
 
 export default function HomePage() {
+  const { data: session } = useSession();
+
   const [recentEvents, setRecentEvents] = useState<EventItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -139,16 +147,29 @@ export default function HomePage() {
   const apiUrl =
     process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-  /* Fetch 6 recent upcoming events using backend .limit(6) endpoint */
+  // Redirect users to login if they are not authenticated.
+  const createEventHref = session?.user
+    ? "/create-event"
+    : "/login?redirect=%2Fcreate-event";
+
+  /* Fetch recent upcoming events */
   const fetchRecentEvents = async () => {
     setLoading(true);
     setError(null);
+
     try {
-      const res = await fetch(`${apiUrl}/events/recent`, { cache: "no-store" });
+      const res = await fetch(`${apiUrl}/events/recent`, {
+        cache: "no-store",
+      });
+
       if (!res.ok) {
-        throw new Error(`Failed to load recent events (Status: ${res.status})`);
+        throw new Error(
+          `Failed to load recent events (Status: ${res.status})`
+        );
       }
+
       const data = await res.json();
+
       if (data.success && Array.isArray(data.data)) {
         setRecentEvents(data.data);
       } else {
@@ -156,7 +177,9 @@ export default function HomePage() {
       }
     } catch (err: unknown) {
       setError(
-        err instanceof Error ? err.message : "Could not reach the server."
+        err instanceof Error
+          ? err.message
+          : "Could not reach the server."
       );
     } finally {
       setLoading(false);
@@ -168,12 +191,20 @@ export default function HomePage() {
 
     async function load() {
       setError(null);
+
       try {
-        const res = await fetch(`${apiUrl}/events/recent`, { cache: "no-store" });
+        const res = await fetch(`${apiUrl}/events/recent`, {
+          cache: "no-store",
+        });
+
         if (!res.ok) {
-          throw new Error(`Failed to load recent events (Status: ${res.status})`);
+          throw new Error(
+            `Failed to load recent events (Status: ${res.status})`
+          );
         }
+
         const data = await res.json();
+
         if (!ignore) {
           if (data.success && Array.isArray(data.data)) {
             setRecentEvents(data.data);
@@ -184,7 +215,9 @@ export default function HomePage() {
       } catch (err: unknown) {
         if (!ignore) {
           setError(
-            err instanceof Error ? err.message : "Could not reach the server."
+            err instanceof Error
+              ? err.message
+              : "Could not reach the server."
           );
         }
       } finally {
@@ -195,203 +228,285 @@ export default function HomePage() {
     }
 
     load();
+
     return () => {
       ignore = true;
     };
   }, [apiUrl]);
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="flex min-h-screen flex-col">
+
       {/* ========================================================== */}
       {/* 1. HERO / BANNER SECTION                                   */}
       {/* ========================================================== */}
-      <section className="relative overflow-hidden border-b bg-gradient-to-b from-emerald-50/60 via-background to-background dark:from-emerald-950/20 dark:via-background dark:to-background py-16 sm:py-24">
-        {/* Subtle decorative background circles */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 -z-10 w-[700px] h-[700px] rounded-full bg-emerald-100/40 dark:bg-emerald-950/20 blur-3xl pointer-events-none" />
+
+      <section className="relative overflow-hidden border-b bg-gradient-to-b from-emerald-50/60 via-background to-background py-16 dark:from-emerald-950/20 dark:via-background dark:to-background sm:py-24">
+
+        <div className="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-[700px] w-[700px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-emerald-100/40 blur-3xl dark:bg-emerald-950/20" />
 
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="grid gap-12 lg:grid-cols-12 lg:items-center">
-            {/* Left Column: Heading and CTAs */}
-            <div className="lg:col-span-7 space-y-6 text-center lg:text-left">
 
+            {/* Left Column */}
+            <div className="space-y-6 text-center lg:col-span-7 lg:text-left">
 
-              <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-6xl text-foreground leading-[1.15]">
+              <h1 className="text-4xl font-extrabold leading-[1.15] tracking-tight text-foreground sm:text-5xl lg:text-6xl">
                 Small Actions,{" "}
-                <span className="text-emerald-700">Big Impact</span> For Our
-                Communities.
+                <span className="text-emerald-700">
+                  Big Impact
+                </span>{" "}
+                For Our Communities.
               </h1>
 
-              <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto lg:mx-0 leading-relaxed">
-                CareCircle connects passionate citizens to create, discover, and join
-                social service events right in their neighborhoods. From blanket
-                distributions in Mirpur to tree plantations in Mohammadpur, every
-                initiative matters.
+              <p className="mx-auto max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg lg:mx-0">
+                CareCircle brings communities together to make a
+                meaningful difference through volunteerism and social
+                action. Discover local initiatives, organize
+                community-driven events, and join hands with people
+                who care. Whether it&apos;s supporting underprivileged
+                families, cleaning public spaces, or planting trees,
+                every small effort helps build a better tomorrow.
               </p>
 
               {/* Action Buttons */}
-              <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3.5 pt-2">
+              <div className="flex flex-col items-center justify-center gap-3.5 pt-2 sm:flex-row lg:justify-start">
+
                 <Link href="/upcoming-events">
-                  <Button className="w-full sm:w-auto h-12 px-6 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold gap-2 shadow-sm text-sm">
+                  <Button className="h-12 w-full gap-2 bg-emerald-700 px-6 text-sm font-semibold text-white shadow-sm hover:bg-emerald-800 sm:w-auto">
                     <CalendarDays className="h-4 w-4" />
                     Explore Upcoming Events
+                    <ArrowRight className="h-4 w-4" />
                   </Button>
                 </Link>
 
-                <Link href="/create-event">
+                <Link href={createEventHref}>
                   <Button
                     variant="outline"
-                    className="w-full sm:w-auto h-12 px-6 font-semibold gap-2 border-border/80 text-sm hover:bg-muted"
+                    className="h-12 w-full gap-2 border-emerald-700/30 px-6 text-sm font-semibold text-emerald-800 transition-all hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/50 sm:w-auto"
                   >
-                    <PlusCircle className="h-4 w-4 text-emerald-700" />
+                    <PlusCircle className="h-4 w-4" />
                     Organize an Event
+                    <ArrowUpRight className="h-4 w-4" />
                   </Button>
                 </Link>
+
               </div>
 
-              {/* Trust & Metric Badges */}
-              <div className="pt-6 border-t border-border/60 flex flex-wrap items-center justify-center lg:justify-start gap-6 text-xs text-muted-foreground">
+              {/* Trust Badges */}
+              <div className="flex flex-wrap items-center justify-center gap-6 border-t border-border/60 pt-6 text-xs text-muted-foreground lg:justify-start">
+
                 <div className="flex items-center gap-2">
                   <div className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
                     ✓
                   </div>
-                  <span className="font-medium text-foreground">100% Free & Open RSVP</span>
+                  <span className="font-medium text-foreground">
+                    100% Free & Open RSVP
+                  </span>
                 </div>
+
                 <div className="flex items-center gap-2">
                   <div className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
                     ✓
                   </div>
-                  <span className="font-medium text-foreground">Verified Local Organizers</span>
+                  <span className="font-medium text-foreground">
+                    Verified Local Organizers
+                  </span>
                 </div>
+
                 <div className="flex items-center gap-2">
                   <div className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
                     ✓
                   </div>
-                  <span className="font-medium text-foreground">Real-Time Attendee Tracking</span>
+                  <span className="font-medium text-foreground">
+                    Real-Time Attendee Tracking
+                  </span>
                 </div>
+
               </div>
             </div>
 
-            {/* Right Column: Hero Visual Showcase */}
+            {/* Right Column */}
             <div className="lg:col-span-5">
               <div className="relative mx-auto max-w-md lg:max-w-none">
+
                 <div className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-xl">
+
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src="https://images.unsplash.com/photo-1593113598332-cd288d649433?auto=format&fit=crop&w=1000&q=80"
                     alt="Community volunteers distributing food and essentials"
                     className="h-80 w-full object-cover sm:h-96"
                   />
-                  <div className="p-5 space-y-3">
+
+                  <div className="space-y-3 p-5">
+
                     <div className="flex items-center justify-between">
-                      <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-semibold text-xs">
+                      <Badge className="bg-emerald-100 text-xs font-semibold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
                         Recent Milestone
                       </Badge>
-                      <span className="text-xs text-muted-foreground">Dhaka, Bangladesh</span>
+
+                      <span className="text-xs text-muted-foreground">
+                        Dhaka, Bangladesh
+                      </span>
                     </div>
+
                     <h3 className="text-base font-bold text-foreground">
                       Winter Clothes & Blanket Drive 2026
                     </h3>
-                    <p className="text-xs text-muted-foreground leading-relaxed">
-                      Over 350 warm blankets and winter garments provided to underprivileged
-                      families across Mirpur and Mohammadpur through grassroots volunteer action.
+
+                    <p className="text-xs leading-relaxed text-muted-foreground">
+                      Over 350 warm blankets and winter garments
+                      provided to underprivileged families across
+                      Mirpur and Mohammadpur through grassroots
+                      volunteer action.
                     </p>
+
                   </div>
                 </div>
-
 
               </div>
             </div>
+
           </div>
         </div>
       </section>
 
       {/* ========================================================== */}
-      {/* 2. FEATURES SECTION                                        */}
+      {/* 2. FEATURES SECTION - REDESIGNED                            */}
       {/* ========================================================== */}
-      <section className="py-20 border-b bg-background">
+
+      <section className="relative overflow-hidden border-b bg-muted/20 py-24">
+
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="text-center max-w-2xl mx-auto space-y-3">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-emerald-700">
-              Why CareCircle
-            </h2>
-            <p className="text-3xl font-extrabold tracking-tight sm:text-4xl text-foreground">
-              Built for Real Community Impact
-            </p>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              Every tool in CareCircle is tailored to remove friction from neighborhood
-              social service and volunteer engagement.
-            </p>
+
+          {/* Section Heading */}
+          <div className="mb-14 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+
+            <div className="max-w-2xl space-y-3">
+
+              <span className="inline-flex items-center gap-2 rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold uppercase tracking-wider text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                <Sparkles className="h-3.5 w-3.5" />
+                Why CareCircle
+              </span>
+
+              <h2 className="text-3xl font-extrabold tracking-tight sm:text-4xl">
+                Making Community Service{" "}
+                <span className="text-emerald-700">
+                  Simple and Meaningful.
+                </span>
+              </h2>
+
+              <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
+                Everything you need to bring people together,
+                organize local initiatives, and turn small acts of
+                kindness into lasting impact.
+              </p>
+
+            </div>
+
+
           </div>
 
-          <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          {/* Feature Cards */}
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+
             {FEATURES.map((feat, idx) => {
               const Icon = feat.icon;
+
               return (
                 <div
-                  key={idx}
-                  className="rounded-2xl border border-border/70 bg-card p-6 shadow-xs hover:border-emerald-700/40 hover:shadow-md transition-all duration-300 flex flex-col justify-between"
+                  key={feat.title}
+                  className="group relative flex flex-col overflow-hidden rounded-2xl border border-border/70 bg-card p-6 transition-all duration-300 hover:-translate-y-2 hover:border-emerald-700/40 hover:shadow-xl"
                 >
-                  <div className="space-y-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+
+                  <div className="flex items-center justify-between">
+
+                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-100 text-emerald-800 transition-all duration-300 group-hover:bg-emerald-700 group-hover:text-white dark:bg-emerald-950 dark:text-emerald-300">
                       <Icon className="h-6 w-6" />
                     </div>
-                    <h3 className="text-lg font-bold text-foreground">
+
+                    <span className="text-3xl font-black text-muted-foreground/20 transition-colors group-hover:text-emerald-700/30">
+                      0{idx + 1}
+                    </span>
+
+                  </div>
+
+                  <div className="mt-8 flex-1 space-y-3">
+
+                    <h3 className="text-lg font-bold transition-colors group-hover:text-emerald-700">
                       {feat.title}
                     </h3>
-                    <p className="text-xs text-muted-foreground leading-relaxed">
+
+                    <p className="text-xs leading-relaxed text-muted-foreground">
                       {feat.description}
                     </p>
+
                   </div>
+
+                  <div className="mt-6 h-1 w-10 rounded-full bg-emerald-700 transition-all duration-300 group-hover:w-full" />
+
                 </div>
               );
             })}
+
           </div>
         </div>
       </section>
 
+
       {/* ========================================================== */}
-      {/* 3. RECENT UPCOMING EVENTS SECTION (Dynamic with .limit(6)) */}
+      {/* RECENT UPCOMING EVENTS SECTION */}
       {/* ========================================================== */}
-      <section className="py-20 border-b bg-muted/20">
+
+      <section className="border-b bg-muted/20 py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between mb-12">
+
+          {/* Section Heading */}
+          <div className="mb-12 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div className="max-w-xl space-y-2">
-              <h2 className="text-3xl font-extrabold tracking-tight sm:text-4xl text-foreground">
+              <h2 className="text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl">
                 Recent Upcoming Events
               </h2>
+
               <p className="text-sm text-muted-foreground">
-                Hand-picked upcoming social causes created by our community members. Join in to make a difference.
+                Hand-picked upcoming social causes created by our
+                community members. Join in to make a difference.
               </p>
             </div>
 
             <Link href="/upcoming-events">
               <Button
                 variant="outline"
-                className="gap-2 font-semibold text-xs sm:text-sm shrink-0 border-border/80 hover:bg-emerald-700 hover:text-white hover:border-emerald-700 transition-all"
+                className="group h-11 gap-2 rounded-full border-emerald-700/30 px-5 text-sm font-semibold transition-all hover:border-emerald-700 hover:bg-emerald-700 hover:text-white"
               >
-                <span>View All Upcoming Events</span>
-                <ArrowRight className="h-4 w-4" />
+                View All Upcoming Events
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
               </Button>
             </Link>
           </div>
 
-          {/* Error notice */}
+          {/* Error Notice */}
           {error && (
-            <div className="mb-8 rounded-xl border border-destructive/30 bg-destructive/10 p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="mb-8 flex flex-col items-center justify-between gap-4 rounded-xl border border-destructive/30 bg-destructive/10 p-5 sm:flex-row">
               <div className="flex items-center gap-3">
-                <AlertCircle className="h-5 w-5 text-destructive shrink-0" />
+                <AlertCircle className="h-5 w-5 shrink-0 text-destructive" />
+
                 <div>
                   <p className="text-sm font-semibold text-destructive">
                     Could not fetch recent events
                   </p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{error}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {error}
+                  </p>
                 </div>
               </div>
+
               <Button
                 variant="outline"
                 size="sm"
                 onClick={fetchRecentEvents}
-                className="gap-2 border-destructive/40 text-destructive hover:bg-destructive/10 shrink-0"
+                className="shrink-0 gap-2 border-destructive/40 text-destructive hover:bg-destructive/10"
               >
                 <RefreshCw className="h-3.5 w-3.5" />
                 Retry
@@ -399,22 +514,28 @@ export default function HomePage() {
             </div>
           )}
 
-          {/* Skeletons while loading */}
+          {/* Loading Skeletons */}
           {loading && (
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {Array.from({ length: 6 }).map((_, idx) => (
-                <Card key={idx} className="overflow-hidden border border-border/60">
-                  <Skeleton className="h-44 w-full rounded-none" />
-                  <CardHeader className="space-y-2 pb-2">
+                <Card
+                  key={idx}
+                  className="overflow-hidden rounded-2xl border-0 shadow-sm"
+                >
+                  <Skeleton className="h-52 w-full rounded-none" />
+
+                  <CardHeader className="space-y-3 pb-2">
                     <Skeleton className="h-4 w-28 rounded-full" />
                     <Skeleton className="h-6 w-3/4 rounded" />
                   </CardHeader>
+
                   <CardContent className="space-y-2 pb-4">
                     <Skeleton className="h-4 w-full" />
                     <Skeleton className="h-4 w-1/2" />
                   </CardContent>
-                  <CardFooter className="pt-2">
-                    <Skeleton className="h-9 w-full rounded-md" />
+
+                  <CardFooter>
+                    <Skeleton className="h-11 w-full rounded-xl" />
                   </CardFooter>
                 </Card>
               ))}
@@ -424,16 +545,20 @@ export default function HomePage() {
           {/* Empty State */}
           {!loading && !error && recentEvents.length === 0 && (
             <div className="flex min-h-[30vh] flex-col items-center justify-center rounded-2xl border border-dashed border-border/80 bg-card px-6 py-12 text-center">
-              <CalendarDays className="h-10 w-10 text-emerald-700 mb-3" />
+              <CalendarDays className="mb-3 h-10 w-10 text-emerald-700" />
+
               <h3 className="text-base font-bold text-foreground">
                 No Upcoming Events Right Now
               </h3>
-              <p className="mt-1 text-xs text-muted-foreground max-w-sm">
-                Be the very first community organizer to schedule a social development event!
+
+              <p className="mt-1 max-w-sm text-xs text-muted-foreground">
+                Be the very first community organizer to schedule
+                a social development event!
               </p>
+
               <div className="mt-4">
-                <Link href="/create-event">
-                  <Button className="bg-emerald-700 hover:bg-emerald-800 text-white gap-2 text-xs font-semibold">
+                <Link href={createEventHref}>
+                  <Button className="gap-2 bg-emerald-700 text-xs font-semibold text-white hover:bg-emerald-800">
                     <PlusCircle className="h-4 w-4" />
                     Create An Event
                   </Button>
@@ -442,74 +567,90 @@ export default function HomePage() {
             </div>
           )}
 
-          {/* 6 Recent Events Grid (2 or 3 columns) */}
+          {/* Event Cards */}
           {!loading && !error && recentEvents.length > 0 && (
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-7 sm:grid-cols-2 lg:grid-cols-3">
               {recentEvents.map((event) => (
                 <Card
                   key={event._id}
-                  className="group flex flex-col overflow-hidden border border-border/70 hover:border-emerald-700/40 hover:shadow-lg transition-all duration-300"
+                  className="group flex flex-col overflow-hidden rounded-2xl border border-border/60 bg-card shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-emerald-700/30 hover:shadow-xl"
                 >
-                  <div className="relative h-44 w-full overflow-hidden bg-muted">
+                  {/* Event Image */}
+                  <div className="relative h-52 w-full overflow-hidden bg-muted">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={event.thumbnailURL || DEFAULT_EVENT_IMAGE}
                       alt={event.title}
                       referrerPolicy="no-referrer"
-                      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
                       onError={(e) => {
-                        (e.currentTarget as HTMLImageElement).src = DEFAULT_EVENT_IMAGE;
+                        (e.currentTarget as HTMLImageElement).src =
+                          DEFAULT_EVENT_IMAGE;
                       }}
                     />
-                    <div className="absolute top-3 left-3">
-                      <Badge className="bg-background/90 text-foreground backdrop-blur-md border border-border/40 font-semibold capitalize text-[11px] shadow-sm">
-                        <Tag className="h-3 w-3 mr-1 text-emerald-700" />
+
+                    {/* Image Overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/10" />
+
+                    {/* Event Type */}
+                    <div className="absolute left-4 top-4">
+                      <Badge className="rounded-full border border-white/30 bg-white/95 px-3 py-1 text-[11px] font-bold capitalize text-emerald-800 shadow-sm backdrop-blur-md">
+                        <Tag className="mr-1.5 h-3 w-3" />
                         {event.eventType}
                       </Badge>
                     </div>
 
-                    {event.joinedCount !== undefined && event.joinedCount > 0 && (
-                      <div className="absolute top-3 right-3">
-                        <Badge className="bg-emerald-700/90 text-white backdrop-blur-md text-[11px] font-medium shadow-sm">
-                          <Users className="h-3 w-3 mr-1" />
-                          {event.joinedCount} Joined
-                        </Badge>
-                      </div>
-                    )}
+                    {/* Joined Count */}
+                    {event.joinedCount !== undefined &&
+                      event.joinedCount > 0 && (
+                        <div className="absolute bottom-4 right-4">
+                          <Badge className="rounded-full border border-white/20 bg-emerald-700/95 px-3 py-1 text-[11px] font-semibold text-white shadow-md backdrop-blur-md">
+                            <Users className="mr-1.5 h-3 w-3" />
+                            {event.joinedCount} Joined
+                          </Badge>
+                        </div>
+                      )}
                   </div>
 
-                  <CardHeader className="pb-2">
-                    <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
-                      <CalendarDays className="h-3.5 w-3.5 shrink-0" />
-                      <span>{formatEventDate(event.eventDate)}</span>
+                  {/* Event Information */}
+                  <CardHeader className="space-y-3 px-5 pb-2 pt-5">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 dark:bg-emerald-950/60">
+                        <CalendarDays className="h-4 w-4" />
+                      </span>
+
+                      {formatEventDate(event.eventDate)}
                     </div>
 
-                    <CardTitle className="text-base font-bold line-clamp-1 group-hover:text-emerald-700 transition-colors">
+                    <CardTitle className="line-clamp-1 text-lg font-bold tracking-tight transition-colors group-hover:text-emerald-700">
                       {event.title}
                     </CardTitle>
                   </CardHeader>
 
-                  <CardContent className="space-y-2.5 flex-1 pb-4">
-                    <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+                  <CardContent className="flex-1 space-y-4 px-5 pb-5 pt-2">
+                    <p className="line-clamp-2 text-sm leading-relaxed text-muted-foreground">
                       {event.description}
                     </p>
 
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground pt-1 border-t border-border/50">
-                      <MapPin className="h-3.5 w-3.5 shrink-0 text-emerald-700" />
-                      <span className="truncate">{event.location}</span>
+                    <div className="flex items-center gap-2 border-t border-border/60 pt-4 text-xs text-muted-foreground">
+                      <MapPin className="h-4 w-4 shrink-0 text-emerald-700" />
+                      <span className="truncate">
+                        {event.location}
+                      </span>
                     </div>
                   </CardContent>
 
-                  <CardFooter className="pt-0">
-                    <Link href={`/events/${event._id}`} className="w-full">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full justify-between text-xs font-medium group-hover:bg-emerald-700 group-hover:text-white group-hover:border-emerald-700 transition-all"
-                      >
-                        <span>View Event</span>
-                        <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
-                      </Button>
+                  {/* View Event Button */}
+                  <CardFooter className="px-5 pb-5 pt-0">
+                    <Link
+                      href={`/events/${event._id}`}
+                      className="group/button flex w-full items-center justify-between rounded-xl bg-emerald-700 px-5 py-3 text-sm font-bold text-white shadow-sm transition-all duration-300 hover:bg-emerald-800 hover:shadow-md"
+                    >
+                      <span>View Event</span>
+
+                      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/15 transition-transform duration-300 group-hover/button:translate-x-1">
+                        <ArrowRight className="h-4 w-4" />
+                      </span>
                     </Link>
                   </CardFooter>
                 </Card>
@@ -519,32 +660,44 @@ export default function HomePage() {
         </div>
       </section>
 
+
       {/* ========================================================== */}
-      {/* 4. GALLERY SECTION (Static photographs)                   */}
+      {/* 4. GALLERY SECTION                                         */}
       {/* ========================================================== */}
-      <section className="py-20 border-b bg-background">
+
+      <section className="border-b bg-background py-20">
+
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="text-center max-w-2xl mx-auto space-y-3 mb-14">
+
+          <div className="mx-auto mb-14 max-w-2xl space-y-3 text-center">
+
             <div className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-emerald-700">
               <Camera className="h-4 w-4" />
               Community Moments
             </div>
-            <h2 className="text-3xl font-extrabold tracking-tight sm:text-4xl text-foreground">
+
+            <h2 className="text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl">
               Photographs From the Field
             </h2>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              Real snapshots of volunteers in action across tree plantations, winter clothing
-              drives, health checks, and youth mentoring.
+
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              Real snapshots of volunteers in action across tree
+              plantations, winter clothing drives, health checks,
+              and youth mentoring.
             </p>
+
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+
             {GALLERY_PHOTOS.map((photo, idx) => (
               <div
                 key={idx}
                 className="group relative overflow-hidden rounded-2xl border border-border/70 bg-card shadow-xs transition-all duration-300 hover:shadow-xl"
               >
+
                 <div className="relative h-64 w-full overflow-hidden bg-muted">
+
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={photo.image}
@@ -552,82 +705,141 @@ export default function HomePage() {
                     referrerPolicy="no-referrer"
                     className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent opacity-80 group-hover:opacity-90 transition-opacity" />
 
-                  {/* Top Badge */}
-                  <div className="absolute top-3 left-3">
-                    <Badge className="bg-white/90 text-emerald-950 backdrop-blur-md text-[11px] font-semibold">
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent opacity-80 transition-opacity group-hover:opacity-90" />
+
+                  {/* Category Badge */}
+                  <div className="absolute left-3 top-3">
+                    <Badge className="bg-white/90 text-[11px] font-semibold text-emerald-950 backdrop-blur-md">
                       {photo.category}
                     </Badge>
                   </div>
 
-                  {/* Caption Overlay */}
-                  <div className="absolute bottom-4 left-4 right-4 text-white space-y-1">
-                    <div className="flex items-center gap-1 text-[11px] text-emerald-300 font-medium">
+                  {/* Caption */}
+                  <div className="absolute bottom-4 left-4 right-4 space-y-1 text-white">
+
+                    <div className="flex items-center gap-1 text-[11px] font-medium text-emerald-300">
                       <MapPin className="h-3 w-3" />
                       <span>{photo.location}</span>
                     </div>
-                    <h3 className="text-sm sm:text-base font-bold leading-tight">
+
+                    <h3 className="text-sm font-bold leading-tight sm:text-base">
                       {photo.title}
                     </h3>
+
                   </div>
                 </div>
+
               </div>
             ))}
+
           </div>
         </div>
       </section>
 
       {/* ========================================================== */}
-      {/* 5. NEWSLETTER SECTION (Design Only - No Functionality Req) */}
+      {/* 5. NEWSLETTER SECTION - REDESIGNED                         */}
       {/* ========================================================== */}
-      <section className="py-20 bg-gradient-to-b from-muted/30 to-background">
-        <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
-          <div className="relative overflow-hidden rounded-3xl border border-emerald-700/20 bg-gradient-to-br from-emerald-800 via-emerald-700 to-teal-800 p-8 sm:p-14 text-white shadow-xl text-center">
-            {/* Background design glow */}
-            <div className="absolute -top-24 -right-24 h-64 w-64 rounded-full bg-white/10 blur-2xl pointer-events-none" />
-            <div className="absolute -bottom-24 -left-24 h-64 w-64 rounded-full bg-emerald-950/40 blur-2xl pointer-events-none" />
 
-            <div className="relative z-10 max-w-xl mx-auto space-y-4">
-              <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3.5 py-1 text-xs font-semibold backdrop-blur-md">
-                <Send className="h-3.5 w-3.5" />
-                <span>Stay Informed</span>
+      <section className="border-b bg-background py-20">
+
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+
+          <div className="relative overflow-hidden rounded-3xl border border-emerald-700/20 bg-card shadow-sm">
+
+            <div className="grid lg:grid-cols-2">
+
+              {/* Left Content */}
+              <div className="relative z-10 flex flex-col justify-center p-8 sm:p-12 lg:p-14">
+
+                <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                  <HeartHandshake className="h-6 w-6" />
+                </div>
+
+                <span className="text-xs font-bold uppercase tracking-widest text-emerald-700">
+                  Stay Connected
+                </span>
+
+                <h2 className="mt-3 text-3xl font-extrabold leading-tight tracking-tight sm:text-4xl">
+                  Good Things Happen When We Come Together.
+                </h2>
+
+                <p className="mt-4 max-w-lg text-sm leading-relaxed text-muted-foreground">
+                  Be part of a community that cares. Discover
+                  upcoming events, volunteer opportunities, and
+                  inspiring stories of people making a difference.
+                </p>
+
+                {/* Newsletter Form - Design Only */}
+                <form
+                  onSubmit={(e) => e.preventDefault()}
+                  className="mt-8 flex flex-col gap-3 sm:flex-row"
+                >
+
+                  <div className="relative flex-1">
+
+                    <Mail className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+
+                    <Input
+                      type="email"
+                      placeholder="Enter your email address"
+                      className="h-12 rounded-xl border-border/80 bg-background pl-10"
+                    />
+
+                  </div>
+
+                  <Button
+                    type="button"
+                    className="h-12 gap-2 rounded-xl bg-emerald-700 px-6 font-semibold text-white hover:bg-emerald-800"
+                  >
+                    Subscribe
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+
+                </form>
+
+                <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
+                  <ShieldCheck className="h-4 w-4 text-emerald-700" />
+                  Your inbox deserves respect. No spam, ever.
+                </div>
+
               </div>
 
-              <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight">
-                Never Miss a Cause Near You
-              </h2>
+              {/* Right Visual */}
+              <div className="relative hidden min-h-[420px] overflow-hidden bg-emerald-900 lg:flex lg:items-center lg:justify-center">
 
-              <p className="text-xs sm:text-sm text-emerald-100 leading-relaxed max-w-md mx-auto">
-                Subscribe to our weekly digest of upcoming community service initiatives,
-                volunteer callouts, and local grassroots stories.
-              </p>
-
-              {/* Newsletter Form UI */}
-              <form
-                onSubmit={(e) => e.preventDefault()}
-                className="mt-6 flex flex-col sm:flex-row items-center gap-2.5 max-w-md mx-auto"
-              >
-                <Input
-                  type="email"
-                  placeholder="Enter your email address"
-                  className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/60 focus-visible:ring-white/40 focus-visible:border-white/50 text-sm"
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="https://images.unsplash.com/photo-1559027615-cd4628902d4a?auto=format&fit=crop&w=1000&q=85"
+                  alt="Volunteers working together for their community"
+                  className="absolute inset-0 h-full w-full object-cover opacity-65"
                 />
-                <Button
-                  type="button"
-                  className="w-full sm:w-auto h-11 px-6 bg-white text-emerald-900 hover:bg-emerald-50 font-bold text-sm shrink-0 shadow-sm"
-                >
-                  Subscribe
-                </Button>
-              </form>
 
-              <p className="text-[11px] text-emerald-200/80 pt-2">
-                We respect your inbox. No spam, ever. Unsubscribe with one click anytime.
-              </p>
+                <div className="absolute inset-0 bg-gradient-to-br from-emerald-950/50 via-emerald-900/30 to-emerald-950/80" />
+
+                <div className="relative z-10 mx-10 max-w-sm text-center text-white">
+
+                  <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-white/30 bg-white/15 backdrop-blur-md">
+                    <HeartHandshake className="h-9 w-9" />
+                  </div>
+
+                  <h3 className="text-3xl font-extrabold leading-tight">
+                    Together, We Can Make a Difference.
+                  </h3>
+
+                  <p className="mt-4 text-sm leading-relaxed text-emerald-50">
+                    One event, one volunteer, and one small action
+                    at a time.
+                  </p>
+
+                </div>
+              </div>
+
             </div>
           </div>
         </div>
       </section>
+
     </div>
   );
 }

@@ -13,6 +13,11 @@ import {
   Loader2,
   HeartHandshake,
   ArrowRight,
+  Users,
+  Sparkles,
+  ShieldCheck,
+  User,
+  X,
 } from "lucide-react";
 
 import { useSession } from "@/lib/auth-client";
@@ -31,14 +36,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
 
 const EVENT_TYPES = [
   { value: "cleanup", label: "🧹 Cleanup" },
@@ -86,11 +83,11 @@ const emptySubscribe = () => () => { };
 
 export default function CreateEventPage() {
   const router = useRouter();
-
   const { data: session, isPending, refetch } = useSession();
 
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [imageError, setImageError] = useState(false);
 
   const minDate = useSyncExternalStore(
     emptySubscribe,
@@ -105,14 +102,12 @@ export default function CreateEventPage() {
       }
 
       const timeout = setTimeout(() => {
-        if (!session) {
-          notify.error(
-            "Authentication Required",
-            "Please sign in to create an event."
-          );
+        notify.error(
+          "Authentication Required",
+          "Please sign in to create an event."
+        );
 
-          router.push("/login?callbackUrl=/create-event");
-        }
+        router.push("/login?callbackUrl=/create-event");
       }, 400);
 
       return () => clearTimeout(timeout);
@@ -124,9 +119,12 @@ export default function CreateEventPage() {
       ...prev,
       [field]: value,
     }));
+
+    if (field === "thumbnailURL") {
+      setImageError(false);
+    }
   };
 
-  // Form validation
   const validate = (): string | null => {
     if (!form.title.trim()) {
       return "Event title is required.";
@@ -156,7 +154,7 @@ export default function CreateEventPage() {
       return "Event date is required.";
     }
 
-    const selected = new Date(form.eventDate);
+    const selected = new Date(`${form.eventDate}T00:00:00`);
     const today = new Date();
 
     today.setHours(0, 0, 0, 0);
@@ -165,12 +163,10 @@ export default function CreateEventPage() {
       return "Event date must be in the future.";
     }
 
-    // Thumbnail URL is mandatory
     if (!form.thumbnailURL.trim()) {
       return "Thumbnail image URL is required.";
     }
 
-    // Validate thumbnail URL
     try {
       const url = new URL(form.thumbnailURL.trim());
 
@@ -187,8 +183,7 @@ export default function CreateEventPage() {
     return null;
   };
 
-  // Submit event
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     const error = validate();
@@ -219,6 +214,10 @@ export default function CreateEventPage() {
       eventDate: form.eventDate,
       creatorEmail: session.user.email,
       creatorName: session.user.name || null,
+      creatorImage:
+        session.user.image ||
+        (session.user as { photoURL?: string }).photoURL ||
+        null,
       createdAt: new Date().toISOString(),
     };
 
@@ -231,9 +230,7 @@ export default function CreateEventPage() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            ...(token
-              ? { Authorization: `Bearer ${token}` }
-              : {}),
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
           body: JSON.stringify(payload),
         }
@@ -249,7 +246,6 @@ export default function CreateEventPage() {
           data?.message || "Something went wrong."
         );
 
-        setIsSubmitting(false);
         return;
       }
 
@@ -259,6 +255,7 @@ export default function CreateEventPage() {
       );
 
       setForm(INITIAL_FORM);
+      setImageError(false);
 
       router.push("/upcoming-events");
     } catch (err: unknown) {
@@ -268,7 +265,7 @@ export default function CreateEventPage() {
           ? err.message
           : "Could not reach the server."
       );
-
+    } finally {
       setIsSubmitting(false);
     }
   };
@@ -282,288 +279,532 @@ export default function CreateEventPage() {
   }
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-gradient-to-br from-emerald-50/60 via-background to-background dark:from-emerald-950/20 dark:via-background dark:to-background">
+    <main className="min-h-screen bg-slate-50/80 pb-16 dark:bg-background">
 
-      <div className="border-b bg-background/70 backdrop-blur-sm">
-        <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
-          <div className="flex items-center gap-4">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-700 text-white shadow-md">
-              <PlusCircle className="h-7 w-7" />
-            </div>
+      {/* Hero Section */}
+      <section className="relative overflow-hidden bg-emerald-950 text-white">
 
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-                Create a New Event
+        <div className="absolute -right-24 -top-32 h-96 w-96 rounded-full border border-white/10" />
+        <div className="absolute -right-10 -top-16 h-72 w-72 rounded-full border border-white/10" />
+        <div className="absolute -bottom-40 -left-20 h-96 w-96 rounded-full bg-emerald-500/20 blur-3xl" />
+
+        <div className="relative mx-auto max-w-6xl px-5 py-12 sm:px-8 sm:py-16">
+
+          <div className="flex flex-col justify-between gap-8 md:flex-row md:items-center">
+
+            <div className="max-w-2xl">
+
+              <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-white/10 px-4 py-2 text-xs font-medium text-emerald-100">
+                <Sparkles className="h-4 w-4" />
+                Make something meaningful happen
+              </div>
+
+              <h1 className="text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl">
+                Bring Your Community
+                <span className="block text-emerald-300">
+                  Together.
+                </span>
               </h1>
 
-              <p className="mt-1 text-sm text-muted-foreground">
-                Organise a community event and invite people to join in.
+              <p className="mt-5 max-w-xl text-sm leading-7 text-emerald-100/75 sm:text-base">
+                Every meaningful change begins with an idea. Create a
+                community event, invite volunteers, and turn your idea
+                into positive action.
               </p>
+
+              <div className="mt-7 flex flex-wrap items-center gap-5 text-sm text-emerald-100/80">
+                <div className="flex items-center gap-2">
+                  <HeartHandshake className="h-4 w-4 text-emerald-300" />
+                  Create initiatives
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Users className="h-4 w-4 text-emerald-300" />
+                  Connect volunteers
+                </div>
+              </div>
+
             </div>
+
+            <div className="hidden h-40 w-40 shrink-0 items-center justify-center rounded-[2rem] border border-white/10 bg-white/5 md:flex lg:h-48 lg:w-48">
+              <div className="flex h-28 w-28 items-center justify-center rounded-[1.7rem] bg-emerald-400/15 ring-1 ring-emerald-300/20 lg:h-36 lg:w-36">
+                <HeartHandshake className="h-16 w-16 text-emerald-300 lg:h-20 lg:w-20" />
+              </div>
+            </div>
+
           </div>
         </div>
-      </div>
+      </section>
 
-      <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
-        <Card className="shadow-sm">
+      {/* Main Form */}
+      <section className="mx-auto max-w-6xl px-4 py-10 sm:px-8">
 
-          <CardHeader className="pb-4">
-            <CardTitle className="flex items-center gap-2 text-base font-semibold">
-              <HeartHandshake className="h-5 w-5 text-emerald-700" />
-              Event Details
-            </CardTitle>
+        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
 
-            <CardDescription>
-              All fields marked with{" "}
-              <span className="text-destructive">*</span> are required.
-            </CardDescription>
-          </CardHeader>
+          {/* Form Card */}
+          <div className="min-w-0 overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
 
-          <CardContent>
-            <form
-              onSubmit={handleSubmit}
-              className="space-y-6"
-              noValidate
-            >
-
-              {/* Event Title */}
-              <div className="space-y-1.5">
-                <Label
-                  htmlFor="title"
-                  className="flex items-center gap-1.5 font-medium"
-                >
-                  <FileText className="h-4 w-4 text-emerald-700" />
-                  Event Title <span className="text-destructive">*</span>
-                </Label>
-
-                <Input
-                  id="title"
-                  value={form.title}
-                  onChange={(e) => setField("title", e.target.value)}
-                  placeholder="e.g. Winter Clothes Distribution – Mirpur 10"
-                  disabled={isSubmitting}
-                  maxLength={120}
-                  required
-                  className="h-10"
-                />
-
-                <p className="text-[11px] text-muted-foreground">
-                  {form.title.length}/120 characters
-                </p>
-              </div>
-
-              {/* Description */}
-              <div className="space-y-1.5">
-                <Label
-                  htmlFor="description"
-                  className="flex items-center gap-1.5 font-medium"
-                >
-                  <FileText className="h-4 w-4 text-emerald-700" />
-                  Description <span className="text-destructive">*</span>
-                </Label>
-
-                <Textarea
-                  id="description"
-                  value={form.description}
-                  onChange={(e) => setField("description", e.target.value)}
-                  placeholder="Describe the event — what will happen, who should join, what to bring…"
-                  disabled={isSubmitting}
-                  rows={4}
-                  maxLength={2000}
-                  required
-                  className="resize-none"
-                />
-
-                <p className="text-[11px] text-muted-foreground">
-                  {form.description.length}/2000 · minimum 20 characters
-                </p>
-              </div>
-
-              {/* Event Type and Location */}
-              <div className="grid gap-4 sm:grid-cols-2">
-
-                <div className="space-y-1.5">
-                  <Label className="flex items-center gap-1.5 font-medium">
-                    <Tag className="h-4 w-4 text-emerald-700" />
-                    Event Type <span className="text-destructive">*</span>
-                  </Label>
-
-                  <Select
-                    value={form.eventType}
-                    onValueChange={(val) => setField("eventType", val ?? "")}
-                    disabled={isSubmitting}
-                  >
-                    <SelectTrigger className="h-10 w-full">
-                      <SelectValue placeholder="Select a type…" />
-                    </SelectTrigger>
-
-                    <SelectContent>
-                      {EVENT_TYPES.map((t) => (
-                        <SelectItem key={t.value} value={t.value}>
-                          {t.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+            {/* Form Header */}
+            <div className="border-b border-border/70 px-5 py-6 sm:px-8">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                  <PlusCircle className="h-5 w-5" />
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label
-                    htmlFor="location"
-                    className="flex items-center gap-1.5 font-medium"
-                  >
-                    <MapPin className="h-4 w-4 text-emerald-700" />
-                    Location <span className="text-destructive">*</span>
-                  </Label>
-
-                  <Input
-                    id="location"
-                    value={form.location}
-                    onChange={(e) => setField("location", e.target.value)}
-                    placeholder="e.g. Mohammadpur, Dhaka"
-                    disabled={isSubmitting}
-                    maxLength={120}
-                    required
-                    className="h-10"
-                  />
-                </div>
-
-              </div>
-
-              {/* Event Date and Thumbnail URL */}
-              <div className="grid gap-4 sm:grid-cols-2">
-
-                <div className="space-y-1.5">
-                  <Label
-                    htmlFor="eventDate"
-                    className="flex items-center gap-1.5 font-medium"
-                  >
-                    <CalendarDays className="h-4 w-4 text-emerald-700" />
-                    Event Date <span className="text-destructive">*</span>
-                  </Label>
-
-                  <Input
-                    id="eventDate"
-                    type="date"
-                    value={form.eventDate}
-                    onChange={(e) => setField("eventDate", e.target.value)}
-                    min={minDate || undefined}
-                    max="2030-12-31"
-                    disabled={isSubmitting}
-                    required
-                    className="h-10"
-                  />
-
-                  <p className="text-[11px] text-muted-foreground">
-                    Must be a future date {minDate ? `(from ${minDate})` : ""}
+                <div>
+                  <h2 className="text-xl font-bold tracking-tight">
+                    Event Information
+                  </h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Fill in the details to publish your event.
                   </p>
                 </div>
+              </div>
+            </div>
 
-                {/* Mandatory Thumbnail Image URL */}
-                <div className="space-y-1.5">
-                  <Label
-                    htmlFor="thumbnailURL"
-                    className="flex items-center gap-1.5 font-medium"
-                  >
-                    <ImageIcon className="h-4 w-4 text-emerald-700" />
-                    Thumbnail Image URL
-                    <span className="text-destructive">*</span>
-                  </Label>
+            <form onSubmit={handleSubmit} noValidate>
+              <div className="space-y-7 p-5 sm:p-8">
 
-                  <Input
-                    id="thumbnailURL"
-                    type="url"
-                    value={form.thumbnailURL}
-                    onChange={(e) =>
-                      setField("thumbnailURL", e.target.value)
-                    }
-                    placeholder="https://images.unsplash.com/photo-..."
+                {/* Section 1 */}
+                <div>
+                  <div className="mb-5 flex items-center gap-2">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-100 text-xs font-bold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                      01
+                    </span>
+
+                    <h3 className="font-semibold">
+                      Basic Information
+                    </h3>
+                  </div>
+
+                  <div className="space-y-5">
+
+                    {/* Title */}
+                    <div className="space-y-2">
+                      <Label htmlFor="title" className="font-semibold">
+                        Event Title <span className="text-destructive">*</span>
+                      </Label>
+
+                      <Input
+                        id="title"
+                        value={form.title}
+                        onChange={(e) => setField("title", e.target.value)}
+                        placeholder="e.g. Winter Clothes Distribution – Rangpur"
+                        disabled={isSubmitting}
+                        maxLength={120}
+                        required
+                        className="h-12 rounded-xl bg-background"
+                      />
+
+                      <p className="text-right text-xs text-muted-foreground">
+                        {form.title.length}/120 characters
+                      </p>
+                    </div>
+
+                    {/* Description */}
+                    <div className="space-y-2">
+                      <Label htmlFor="description" className="font-semibold">
+                        Event Description{" "}
+                        <span className="text-destructive">*</span>
+                      </Label>
+
+                      <Textarea
+                        id="description"
+                        value={form.description}
+                        onChange={(e) =>
+                          setField("description", e.target.value)
+                        }
+                        placeholder="Describe the purpose of your event, activities, who can participate, and what volunteers should bring..."
+                        disabled={isSubmitting}
+                        rows={5}
+                        maxLength={2000}
+                        required
+                        className="min-h-32 resize-y rounded-xl bg-background"
+                      />
+
+                      <p className="text-right text-xs text-muted-foreground">
+                        {form.description.length}/2000 · Minimum 20 characters
+                      </p>
+                    </div>
+
+                  </div>
+                </div>
+
+                <div className="h-px bg-border/70" />
+
+                {/* Section 2 */}
+                <div>
+                  <div className="mb-5 flex items-center gap-2">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-100 text-xs font-bold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                      02
+                    </span>
+
+                    <h3 className="font-semibold">
+                      Event Category & Location
+                    </h3>
+                  </div>
+
+                  <div className="grid gap-5 sm:grid-cols-2">
+
+                    {/* Event Type */}
+                    <div className="space-y-2">
+                      <Label className="font-semibold">
+                        Event Type <span className="text-destructive">*</span>
+                      </Label>
+
+                      <Select
+                        value={form.eventType}
+                        onValueChange={(val) =>
+                          setField("eventType", val ?? "")
+                        }
+                        disabled={isSubmitting}
+                      >
+                        <SelectTrigger className="h-12 w-full rounded-xl bg-background">
+                          <SelectValue placeholder="Choose a category" />
+                        </SelectTrigger>
+
+                        <SelectContent>
+                          {EVENT_TYPES.map((type) => (
+                            <SelectItem
+                              key={type.value}
+                              value={type.value}
+                            >
+                              {type.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Location */}
+                    <div className="space-y-2">
+                      <Label htmlFor="location" className="font-semibold">
+                        Event Location{" "}
+                        <span className="text-destructive">*</span>
+                      </Label>
+
+                      <div className="relative">
+                        <MapPin className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+
+                        <Input
+                          id="location"
+                          value={form.location}
+                          onChange={(e) =>
+                            setField("location", e.target.value)
+                          }
+                          placeholder="e.g. Rangpur, Bangladesh"
+                          disabled={isSubmitting}
+                          maxLength={120}
+                          required
+                          className="h-12 rounded-xl bg-background pl-10"
+                        />
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+
+                <div className="h-px bg-border/70" />
+
+                {/* Section 3 */}
+                <div>
+                  <div className="mb-5 flex items-center gap-2">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-100 text-xs font-bold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                      03
+                    </span>
+
+                    <h3 className="font-semibold">
+                      Schedule & Event Image
+                    </h3>
+                  </div>
+
+                  <div className="space-y-5">
+
+                    {/* Date */}
+                    <div className="space-y-2">
+                      <Label htmlFor="eventDate" className="font-semibold">
+                        Event Date <span className="text-destructive">*</span>
+                      </Label>
+
+                      <div className="relative">
+                        <CalendarDays className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+
+                        <Input
+                          id="eventDate"
+                          type="date"
+                          value={form.eventDate}
+                          onChange={(e) =>
+                            setField("eventDate", e.target.value)
+                          }
+                          min={minDate || undefined}
+                          max="2030-12-31"
+                          disabled={isSubmitting}
+                          required
+                          className="h-12 rounded-xl bg-background pl-10"
+                        />
+                      </div>
+
+                      <p className="text-xs text-muted-foreground">
+                        Choose a future date for your community event.
+                      </p>
+                    </div>
+
+                    {/* Thumbnail URL */}
+                    <div className="space-y-2">
+                      <Label
+                        htmlFor="thumbnailURL"
+                        className="font-semibold"
+                      >
+                        Event Thumbnail URL{" "}
+                        <span className="text-destructive">*</span>
+                      </Label>
+
+                      <div className="relative">
+                        <ImageIcon className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+
+                        <Input
+                          id="thumbnailURL"
+                          type="url"
+                          value={form.thumbnailURL}
+                          onChange={(e) =>
+                            setField("thumbnailURL", e.target.value)
+                          }
+                          placeholder="https://example.com/event-image.jpg"
+                          disabled={isSubmitting}
+                          required
+                          className="h-12 rounded-xl bg-background pl-10"
+                        />
+                      </div>
+
+                      <p className="text-xs text-muted-foreground">
+                        Add a publicly accessible image URL for your event.
+                      </p>
+                    </div>
+
+                    {/* Image Preview */}
+                    {form.thumbnailURL.trim() && (
+                      <div className="relative overflow-hidden rounded-2xl border border-border/70 bg-muted/30">
+
+                        {!imageError ? (
+                          <>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={form.thumbnailURL.trim()}
+                              alt="Event thumbnail preview"
+                              className="aspect-[16/7] w-full object-cover"
+                              referrerPolicy="no-referrer"
+                              onError={() => setImageError(true)}
+                            />
+
+                            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-4 pb-4 pt-10">
+                              <p className="text-xs font-semibold text-white">
+                                EVENT IMAGE PREVIEW
+                              </p>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="flex min-h-32 flex-col items-center justify-center gap-2 p-5 text-center">
+                            <ImageIcon className="h-8 w-8 text-muted-foreground" />
+                            <p className="text-sm font-medium">
+                              Unable to load image
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Please check your image URL.
+                            </p>
+                          </div>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setField("thumbnailURL", "");
+                            setImageError(false);
+                          }}
+                          disabled={isSubmitting}
+                          aria-label="Remove image URL"
+                          className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white transition hover:bg-black/80"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    )}
+
+                  </div>
+                </div>
+
+                {/* Organizer */}
+                <div className="rounded-2xl border border-emerald-700/15 bg-emerald-50/70 p-4 dark:bg-emerald-950/20">
+                  <div className="flex items-center gap-3">
+
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300">
+                      <User className="h-5 w-5" />
+                    </div>
+
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">
+                        EVENT ORGANIZER
+                      </p>
+
+                      <p className="mt-1 truncate text-sm font-semibold">
+                        {session.user.name || "Community Member"}
+                      </p>
+
+                      <p className="truncate text-xs text-muted-foreground">
+                        {session.user.email}
+                      </p>
+                    </div>
+
+                    <div className="ml-auto shrink-0">
+                      <ShieldCheck className="h-5 w-5 text-emerald-700" />
+                    </div>
+
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex flex-col-reverse gap-3 border-t border-border/70 pt-6 sm:flex-row sm:justify-end">
+
+                  <Button
+                    type="button"
+                    variant="outline"
                     disabled={isSubmitting}
-                    required
-                    className="h-10"
-                  />
+                    onClick={() => router.back()}
+                    className="h-12 rounded-xl px-6"
+                  >
+                    Cancel
+                  </Button>
 
-                  <p className="text-[11px] text-muted-foreground">
-                    Required. Provide a valid direct image URL (.jpg / .png / .webp).
-                  </p>
+                  <Button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="h-12 gap-2 rounded-xl bg-emerald-700 px-7 font-semibold text-white shadow-md shadow-emerald-700/15 hover:bg-emerald-800"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Publishing Event...
+                      </>
+                    ) : (
+                      <>
+                        <PlusCircle className="h-4 w-4" />
+                        Publish Event
+                        <ArrowRight className="h-4 w-4" />
+                      </>
+                    )}
+                  </Button>
+
                 </div>
 
               </div>
-
-              {/* Thumbnail Preview */}
-              {form.thumbnailURL.trim() && (
-                <div className="overflow-hidden rounded-xl border border-border/60 bg-muted/30">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={form.thumbnailURL.trim()}
-                    alt="Thumbnail preview"
-                    className="max-h-48 w-full object-cover"
-                    referrerPolicy="no-referrer"
-                    onError={(e) => {
-                      e.currentTarget.style.display = "none";
-                    }}
-                  />
-
-                  <p className="px-3 py-1.5 text-[11px] text-muted-foreground">
-                    Preview — image must be a direct URL
-                  </p>
-                </div>
-              )}
-
-              {/* Event Organiser */}
-              <div className="rounded-xl border border-emerald-700/20 bg-emerald-50/60 px-4 py-3 dark:bg-emerald-950/20">
-                <p className="text-xs text-muted-foreground">
-                  <span className="font-semibold text-emerald-800 dark:text-emerald-300">
-                    Event organiser:
-                  </span>{" "}
-                  {session.user.name ? `${session.user.name} ` : ""}
-                  <span className="font-mono text-xs">
-                    {session.user.email}
-                  </span>
-                </p>
-
-                <p className="mt-0.5 text-[11px] text-muted-foreground">
-                  Your email is saved with the event so you can manage it later.
-                </p>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={isSubmitting}
-                  onClick={() => router.back()}
-                  className="w-full sm:w-auto"
-                >
-                  Cancel
-                </Button>
-
-                <Button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="w-full gap-2 bg-emerald-700 hover:bg-emerald-800 text-white sm:w-auto"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Publishing…
-                    </>
-                  ) : (
-                    <>
-                      <ArrowRight className="h-4 w-4" />
-                      Publish Event
-                    </>
-                  )}
-                </Button>
-
-              </div>
-
             </form>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
+          </div>
+
+          {/* Right Sidebar */}
+          <aside className="space-y-5">
+
+            {/* Tips Card */}
+            <div className="rounded-2xl border border-border/70 bg-card p-5 shadow-sm">
+
+              <div className="mb-4 flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                  <Sparkles className="h-5 w-5" />
+                </div>
+
+                <div>
+                  <h3 className="font-bold">Tips for a Great Event</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Make your event stand out
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+
+                <div>
+                  <p className="text-sm font-semibold">
+                    Write a clear title
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                    Choose a title that explains what your event is about.
+                  </p>
+                </div>
+
+                <div className="h-px bg-border/70" />
+
+                <div>
+                  <p className="text-sm font-semibold">
+                    Add useful details
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                    Explain the purpose, activities, and how people can help.
+                  </p>
+                </div>
+
+                <div className="h-px bg-border/70" />
+
+                <div>
+                  <p className="text-sm font-semibold">
+                    Choose a good image
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                    Use a relevant, high-quality image to attract volunteers.
+                  </p>
+                </div>
+
+                <div className="h-px bg-border/70" />
+
+                <div>
+                  <p className="text-sm font-semibold">
+                    Provide an exact location
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                    Mention the area, city, and venue so participants can find you.
+                  </p>
+                </div>
+
+              </div>
+            </div>
+
+            {/* Community Message */}
+            <div className="overflow-hidden rounded-2xl bg-emerald-950 p-5 text-white">
+              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-white/10">
+                <HeartHandshake className="h-6 w-6 text-emerald-300" />
+              </div>
+
+              <h3 className="text-lg font-bold">
+                Every Action Matters.
+              </h3>
+
+              <p className="mt-2 text-sm leading-6 text-emerald-100/75">
+                A small act of kindness can inspire an entire community.
+                Your event could be the beginning of something wonderful.
+              </p>
+
+              <div className="mt-5 flex items-center gap-2 text-xs font-medium text-emerald-300">
+                <HeartHandshake className="h-4 w-4" />
+                Together, we make a difference.
+              </div>
+            </div>
+
+            {/* Privacy Note */}
+            <div className="flex items-start gap-3 rounded-2xl border border-border/70 bg-card p-4">
+              <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" />
+
+              <div>
+                <p className="text-sm font-semibold">
+                  Community Guidelines
+                </p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  Make sure your event details are accurate, respectful,
+                  and focused on creating a positive community impact.
+                </p>
+              </div>
+            </div>
+
+          </aside>
+
+        </div>
+      </section>
+    </main>
   );
 }

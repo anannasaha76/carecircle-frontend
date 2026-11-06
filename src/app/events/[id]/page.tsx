@@ -370,11 +370,37 @@ function EventDetailsContent({
                 </CardTitle>
               </CardHeader>
               <CardContent className="flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-800 font-bold text-lg dark:bg-emerald-950 dark:text-emerald-300">
-                  {event.creatorName
-                    ? event.creatorName.charAt(0).toUpperCase()
-                    : event.creatorEmail.charAt(0).toUpperCase()}
-                </div>
+                {event.creatorImage ? (
+                  <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-full border-2 border-emerald-700/20 shadow-sm">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={event.creatorImage}
+                      alt={event.creatorName || "Organizer"}
+                      referrerPolicy="no-referrer"
+                      className="h-full w-full object-cover"
+                      onError={(e) => {
+                        const target = e.currentTarget;
+                        target.style.display = "none";
+                        const fallback = target.nextElementSibling as HTMLElement | null;
+                        if (fallback) fallback.style.display = "flex";
+                      }}
+                    />
+                    <div
+                      style={{ display: "none" }}
+                      className="absolute inset-0 flex items-center justify-center rounded-full bg-emerald-100 text-emerald-800 font-bold text-lg dark:bg-emerald-950 dark:text-emerald-300"
+                    >
+                      {event.creatorName
+                        ? event.creatorName.charAt(0).toUpperCase()
+                        : event.creatorEmail.charAt(0).toUpperCase()}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-800 font-bold text-lg dark:bg-emerald-950 dark:text-emerald-300 border-2 border-emerald-700/20">
+                    {event.creatorName
+                      ? event.creatorName.charAt(0).toUpperCase()
+                      : event.creatorEmail.charAt(0).toUpperCase()}
+                  </div>
+                )}
                 <div>
                   <p className="text-sm font-bold">
                     {event.creatorName || "Community Member"}
