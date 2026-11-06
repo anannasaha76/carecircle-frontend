@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import "./globals.css";
 import ThemeProvider from "@/components/providers/ThemeProvider";
+import SocialLoginToast from "@/components/providers/SocialLoginToast";
 import Navbar from "@/components/shared/Navbar";
 import Footer from "@/components/shared/Footer";
 import { Toaster } from "@/components/ui/toast";
@@ -21,6 +22,7 @@ export default function RootLayout({
       <body className="min-h-screen bg-background font-sans antialiased text-foreground">
         <ThemeProvider>
           <Toaster />
+          <SocialLoginToast />
           <Suspense fallback={<div className="h-16 border-b bg-background/95" />}>
             <Navbar />
           </Suspense>

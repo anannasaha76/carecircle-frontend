@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 
 import { CareCircleLogo } from "@/components/shared/CareCircleLogo";
+import { SOCIAL_LOGIN_KEY } from "@/components/providers/SocialLoginToast";
 import { signIn, useSession } from "@/lib/auth-client";
 import { notify } from "@/lib/notify";
 import { Button } from "@/components/ui/button";
@@ -101,6 +102,10 @@ export default function LoginPage() {
   const handleSocialSignIn = async (provider: "google") => {
     setIsSocialLoading(provider);
 
+    if (typeof window !== "undefined") {
+      window.sessionStorage.setItem(SOCIAL_LOGIN_KEY, provider);
+    }
+
     try {
       const res = await signIn.social({
         provider,
@@ -108,12 +113,20 @@ export default function LoginPage() {
       });
 
       if (res?.error) {
+        if (typeof window !== "undefined") {
+          window.sessionStorage.removeItem(SOCIAL_LOGIN_KEY);
+        }
+
         notify.error(
           "Social Login Failed",
           res.error.message || `Failed to sign in with ${provider}.`
         );
       }
     } catch (err: unknown) {
+      if (typeof window !== "undefined") {
+        window.sessionStorage.removeItem(SOCIAL_LOGIN_KEY);
+      }
+
       notify.error(
         "Social Login Error",
         err instanceof Error
