@@ -2,7 +2,7 @@
 
 CareCircle is a community-driven social development platform that connects passionate individuals with meaningful social service initiatives. Users can discover community events, organize social activities, participate in volunteer programs, and contribute to making a positive difference in society.
 
-**Live Website:** [https://carecircle-frontend.vercel.app/]
+**Live Website:** https://carecircle-frontend.vercel.app/
 
 ## ✨ Key Features
 
