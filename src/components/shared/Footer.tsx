@@ -1,10 +1,15 @@
+
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  HeartHandshake,
   MapPin,
   Mail,
   Phone,
 } from "lucide-react";
+import { useSession } from "@/lib/auth-client";
+import { CareCircleLogo } from "@/components/shared/CareCircleLogo";
 
 /** X (formerly Twitter) brand SVG icon */
 function XIcon({ className = "h-4 w-4" }: { className?: string }) {
@@ -67,23 +72,43 @@ function FacebookIcon({ className = "h-4 w-4" }: { className?: string }) {
 }
 
 export default function Footer() {
-  const currentYear = 2026;
+  // Avoid calling new Date() during prerendering.
+  const [currentYear, setCurrentYear] = useState<number | null>(null);
+
+  useEffect(() => {
+    setCurrentYear(new Date().getFullYear());
+  }, []);
+
+  const { data: session } = useSession();
+
+  // Redirect unauthenticated users to login with their intended destination.
+  const getProtectedHref = (path: string) => {
+    if (session?.user) {
+      return path;
+    }
+
+    return `/login?redirect=${encodeURIComponent(path)}`;
+  };
 
   return (
     <footer className="border-t bg-muted/30 dark:bg-muted/10 text-foreground">
-      {/* ── Main Footer Content ── */}
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-5">
-          {/* Col 1 & 2: Brand Info */}
+
+        {/* Main Footer Content */}
+        <div className="grid grid-cols-1 gap-10 md:grid-cols-2 lg:grid-cols-4">
+
+          {/* Brand Section - Left */}
           <div className="lg:col-span-2 space-y-4">
             <Link href="/" className="flex items-center gap-2.5 group w-fit">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-700 text-white shadow-sm transition-transform group-hover:scale-105">
-                <HeartHandshake className="h-6 w-6" />
+                <CareCircleLogo className="h-6 w-6" />
               </div>
+
               <div>
                 <span className="text-xl font-bold tracking-tight">
                   Care<span className="text-emerald-700">Circle</span>
                 </span>
+
                 <p className="text-[10px] text-muted-foreground leading-none">
                   Small Actions, Big Impact
                 </p>
@@ -91,9 +116,9 @@ export default function Footer() {
             </Link>
 
             <p className="text-sm text-muted-foreground max-w-sm leading-relaxed">
-              CareCircle is a community-driven event management platform where citizens
-              create, discover, and join grassroots social service activities in their
-              local neighborhoods.
+              CareCircle is a community-driven event management platform where
+              citizens create, discover, and join grassroots social service
+              activities in their local neighborhoods.
             </p>
 
             {/* Social Icons */}
@@ -107,6 +132,7 @@ export default function Footer() {
               >
                 <XIcon className="h-4 w-4" />
               </a>
+
               <a
                 href="https://github.com"
                 target="_blank"
@@ -116,6 +142,7 @@ export default function Footer() {
               >
                 <GithubIcon className="h-4 w-4" />
               </a>
+
               <a
                 href="https://linkedin.com"
                 target="_blank"
@@ -125,6 +152,7 @@ export default function Footer() {
               >
                 <LinkedinIcon className="h-4 w-4" />
               </a>
+
               <a
                 href="https://facebook.com"
                 target="_blank"
@@ -137,11 +165,12 @@ export default function Footer() {
             </div>
           </div>
 
-          {/* Col 3: Quick Navigation */}
+          {/* Explore Section - Middle */}
           <div className="space-y-3">
             <p className="text-xs font-bold uppercase tracking-wider text-foreground">
               Explore
             </p>
+
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li>
                 <Link
@@ -151,6 +180,7 @@ export default function Footer() {
                   Home
                 </Link>
               </li>
+
               <li>
                 <Link
                   href="/upcoming-events"
@@ -159,25 +189,28 @@ export default function Footer() {
                   Upcoming Events
                 </Link>
               </li>
+
               <li>
                 <Link
-                  href="/create-event"
+                  href={getProtectedHref("/create-event")}
                   className="hover:text-emerald-700 transition-colors"
                 >
                   Create an Event
                 </Link>
               </li>
+
               <li>
                 <Link
-                  href="/joined-events"
+                  href={getProtectedHref("/joined-events")}
                   className="hover:text-emerald-700 transition-colors"
                 >
                   Joined Events
                 </Link>
               </li>
+
               <li>
                 <Link
-                  href="/manage-events"
+                  href={getProtectedHref("/manage-events")}
                   className="hover:text-emerald-700 transition-colors"
                 >
                   Manage My Events
@@ -186,69 +219,23 @@ export default function Footer() {
             </ul>
           </div>
 
-          {/* Col 4: Community Causes */}
-          <div className="space-y-3">
-            <p className="text-xs font-bold uppercase tracking-wider text-foreground">
-              Causes
-            </p>
-            <ul className="space-y-2 text-sm text-muted-foreground">
-              <li>
-                <Link
-                  href="/upcoming-events"
-                  className="hover:text-emerald-700 transition-colors"
-                >
-                  🌱 Tree Plantation
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/upcoming-events"
-                  className="hover:text-emerald-700 transition-colors"
-                >
-                  🎁 Blanket & Clothes Drive
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/upcoming-events"
-                  className="hover:text-emerald-700 transition-colors"
-                >
-                  🧹 City Cleanups
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/upcoming-events"
-                  className="hover:text-emerald-700 transition-colors"
-                >
-                  🍱 Food Distribution
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/upcoming-events"
-                  className="hover:text-emerald-700 transition-colors"
-                >
-                  🏥 Free Medical Camps
-                </Link>
-              </li>
-            </ul>
-          </div>
-
-          {/* Col 5: Contact Info */}
+          {/* Contact Section - Right */}
           <div className="space-y-3">
             <p className="text-xs font-bold uppercase tracking-wider text-foreground">
               Contact
             </p>
+
             <ul className="space-y-2.5 text-xs text-muted-foreground">
               <li className="flex items-start gap-2">
                 <MapPin className="h-4 w-4 shrink-0 text-emerald-700 mt-0.5" />
                 <span>Mirpur, Dhaka, Bangladesh</span>
               </li>
+
               <li className="flex items-center gap-2">
                 <Mail className="h-4 w-4 shrink-0 text-emerald-700" />
                 <span>support@carecircle.org</span>
               </li>
+
               <li className="flex items-center gap-2">
                 <Phone className="h-4 w-4 shrink-0 text-emerald-700" />
                 <span>+880 1700-000000</span>
@@ -257,11 +244,14 @@ export default function Footer() {
           </div>
         </div>
 
-        {/* ── Bottom Bar ── */}
+        {/* Bottom Bar */}
         <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-border/60 pt-6 sm:flex-row text-xs text-muted-foreground">
-          <p>© {currentYear} CareCircle. All rights reserved.</p>
+          <p>
+            © {currentYear ?? "2026"} CareCircle. All rights reserved.
+          </p>
+
           <p className="flex items-center gap-1">
-            Built with care for social development & community action.
+            Built for social development & community action by CareCirle.
           </p>
         </div>
       </div>

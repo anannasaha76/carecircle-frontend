@@ -4,7 +4,22 @@ import { mongodbAdapter } from "@better-auth/mongo-adapter";
 import { jwt } from "better-auth/plugins";
 
 const uri = process.env.MONGODB_URI || "mongodb://localhost:27017/carecircle";
-const client = new MongoClient(uri);
+
+declare global {
+  var _mongoClient: MongoClient | undefined;
+}
+
+let client: MongoClient;
+
+if (process.env.NODE_ENV === "development") {
+  if (!global._mongoClient) {
+    global._mongoClient = new MongoClient(uri);
+  }
+  client = global._mongoClient;
+} else {
+  client = new MongoClient(uri);
+}
+
 const db = client.db("carecircle");
 
 export const auth = betterAuth({

@@ -81,7 +81,7 @@ function formatJoinedDate(isoString?: string) {
 }
 export default function JoinedEventsPage() {
   const router = useRouter();
-  const { data: session, isPending } = useSession();
+  const { data: session, isPending, refetch } = useSession();
 
   const [joinedEvents, setJoinedEvents] = useState<JoinedEventItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -101,10 +101,18 @@ export default function JoinedEventsPage() {
 
   useEffect(() => {
     if (!isPending && !session) {
-      notify.error("Authentication Required", "Please sign in to view your joined events.");
-      router.push("/login");
+      if (refetch) {
+        refetch().catch(() => {});
+      }
+      const timeout = setTimeout(() => {
+        if (!session) {
+          notify.error("Authentication Required", "Please sign in to view your joined events.");
+          router.push("/login?callbackUrl=/joined-events");
+        }
+      }, 400);
+      return () => clearTimeout(timeout);
     }
-  }, [session, isPending, router]);
+  }, [session, isPending, router, refetch]);
 
   const fetchJoinedEvents = async () => {
     if (!session?.user?.email) return;

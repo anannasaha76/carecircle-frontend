@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
-  HeartHandshake,
   Eye,
   EyeOff,
   CheckCircle2,
@@ -15,6 +14,7 @@ import {
   Image as ImageIcon,
   Lock,
 } from "lucide-react";
+import { CareCircleLogo } from "@/components/shared/CareCircleLogo";
 
 import { signUp } from "@/lib/auth-client";
 import { notify } from "@/lib/notify";
@@ -59,6 +59,22 @@ export default function RegisterPage() {
       return;
     }
 
+    if (!photoURL.trim()) {
+      notify.error("Validation Error", "Please provide a profile photo URL.");
+      return;
+    }
+
+    try {
+      const parsedUrl = new URL(photoURL.trim());
+      if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+        notify.error("Validation Error", "Profile photo URL must start with http:// or https://");
+        return;
+      }
+    } catch {
+      notify.error("Validation Error", "Please enter a valid URL for your profile photo.");
+      return;
+    }
+
     if (!hasUppercase) {
       notify.error(
         "Invalid Password",
@@ -86,7 +102,7 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
-      const photo = photoURL.trim() || undefined;
+      const photo = photoURL.trim();
       const res = await signUp.email({
         name: name.trim(),
         email: email.trim().toLowerCase(),
@@ -102,12 +118,15 @@ export default function RegisterPage() {
       }
 
       notify.success("Account Created!", "Welcome to CareCircle. You can now log in.");
+      setIsLoading(false);
       router.push("/login");
     } catch (err: unknown) {
       notify.error(
         "Registration Error",
         err instanceof Error ? err.message : "An unexpected error occurred. Please try again."
       );
+      setIsLoading(false);
+    } finally {
       setIsLoading(false);
     }
   };
@@ -117,7 +136,7 @@ export default function RegisterPage() {
       <Card className="w-full max-w-md shadow-lg border-border/60">
         <CardHeader className="space-y-2 text-center pb-6">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-700 text-white shadow-md">
-            <HeartHandshake className="h-7 w-7" />
+            <CareCircleLogo className="h-7 w-7" />
           </div>
           <CardTitle className="text-2xl font-bold tracking-tight">
             Create an Account
@@ -171,6 +190,7 @@ export default function RegisterPage() {
               <Input
                 id="photoURL"
                 type="url"
+                required
                 placeholder="https://images.unsplash.com/photo-..."
                 value={photoURL}
                 onChange={(e) => setPhotoURL(e.target.value)}
@@ -178,7 +198,7 @@ export default function RegisterPage() {
                 className="h-10"
               />
               <p className="text-[11px] text-muted-foreground">
-                Optional: URL of your avatar or profile photo.
+                Enter a valid image URL (e.g. from cloud storage).
               </p>
             </div>
 

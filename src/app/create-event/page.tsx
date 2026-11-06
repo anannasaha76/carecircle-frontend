@@ -1,4 +1,6 @@
+
 "use client";
+
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -21,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+
 import {
   Select,
   SelectContent,
@@ -28,12 +31,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
+  CardDescription,
 } from "@/components/ui/card";
 
 const EVENT_TYPES = [
@@ -52,12 +56,13 @@ const EVENT_TYPES = [
 function getTomorrowString() {
   const d = new Date();
   d.setDate(d.getDate() + 1);
+
   const yyyy = d.getFullYear();
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");
+
   return `${yyyy}-${mm}-${dd}`;
 }
-
 
 interface FormState {
   title: string;
@@ -77,13 +82,12 @@ const INITIAL_FORM: FormState = {
   eventDate: "",
 };
 
-
-
-const emptySubscribe = () => () => {};
+const emptySubscribe = () => () => { };
 
 export default function CreateEventPage() {
   const router = useRouter();
-  const { data: session, isPending } = useSession();
+
+  const { data: session, isPending, refetch } = useSession();
 
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -96,52 +100,110 @@ export default function CreateEventPage() {
 
   useEffect(() => {
     if (!isPending && !session) {
-      notify.error("Authentication Required", "Please sign in to create an event.");
-      router.push("/login");
+      if (refetch) {
+        refetch().catch(() => { });
+      }
+
+      const timeout = setTimeout(() => {
+        if (!session) {
+          notify.error(
+            "Authentication Required",
+            "Please sign in to create an event."
+          );
+
+          router.push("/login?callbackUrl=/create-event");
+        }
+      }, 400);
+
+      return () => clearTimeout(timeout);
     }
-  }, [session, isPending, router]);
+  }, [session, isPending, router, refetch]);
 
   const setField = (field: keyof FormState, value: string) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
+    setForm((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
   };
 
+  // Form validation
   const validate = (): string | null => {
-    if (!form.title.trim()) return "Event title is required.";
-    if (form.title.trim().length < 5) return "Title must be at least 5 characters.";
-    if (!form.description.trim()) return "Description is required.";
-    if (form.description.trim().length < 20)
+    if (!form.title.trim()) {
+      return "Event title is required.";
+    }
+
+    if (form.title.trim().length < 5) {
+      return "Title must be at least 5 characters.";
+    }
+
+    if (!form.description.trim()) {
+      return "Description is required.";
+    }
+
+    if (form.description.trim().length < 20) {
       return "Description must be at least 20 characters.";
-    if (!form.eventType) return "Please select an event type.";
-    if (!form.location.trim()) return "Location is required.";
-    if (!form.eventDate) return "Event date is required.";
+    }
+
+    if (!form.eventType) {
+      return "Please select an event type.";
+    }
+
+    if (!form.location.trim()) {
+      return "Location is required.";
+    }
+
+    if (!form.eventDate) {
+      return "Event date is required.";
+    }
 
     const selected = new Date(form.eventDate);
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (selected <= today) return "Event date must be in the future.";
 
-    if (form.thumbnailURL.trim()) {
-      try {
-        new URL(form.thumbnailURL.trim());
-      } catch {
-        return "Thumbnail must be a valid URL (or leave it empty).";
+    today.setHours(0, 0, 0, 0);
+
+    if (selected <= today) {
+      return "Event date must be in the future.";
+    }
+
+    // Thumbnail URL is mandatory
+    if (!form.thumbnailURL.trim()) {
+      return "Thumbnail image URL is required.";
+    }
+
+    // Validate thumbnail URL
+    try {
+      const url = new URL(form.thumbnailURL.trim());
+
+      if (
+        url.protocol !== "https:" &&
+        url.protocol !== "http:"
+      ) {
+        return "Please provide a valid image URL.";
       }
+    } catch {
+      return "Please provide a valid image URL.";
     }
 
     return null;
   };
 
+  // Submit event
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     const error = validate();
+
     if (error) {
       notify.error("Validation Error", error);
       return;
     }
 
     if (!session?.user?.email) {
-      notify.error("Not Authenticated", "Your session has expired. Please sign in again.");
+      notify.error(
+        "Not Authenticated",
+        "Your session has expired. Please sign in again."
+      );
+
       router.push("/login");
       return;
     }
@@ -152,7 +214,7 @@ export default function CreateEventPage() {
       title: form.title.trim(),
       description: form.description.trim(),
       eventType: form.eventType,
-      thumbnailURL: form.thumbnailURL.trim() || null,
+      thumbnailURL: form.thumbnailURL.trim(),
       location: form.location.trim(),
       eventDate: form.eventDate,
       creatorEmail: session.user.email,
@@ -162,33 +224,51 @@ export default function CreateEventPage() {
 
     try {
       const token = await getTokenFromClient();
+
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/events`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            ...(token
+              ? { Authorization: `Bearer ${token}` }
+              : {}),
           },
           body: JSON.stringify(payload),
         }
       );
 
       if (!res.ok) {
-        const data = (await res.json().catch(() => ({}))) as { message?: string };
-        notify.error("Failed to Create Event", data?.message || "Something went wrong.");
+        const data = (await res.json().catch(() => ({}))) as {
+          message?: string;
+        };
+
+        notify.error(
+          "Failed to Create Event",
+          data?.message || "Something went wrong."
+        );
+
         setIsSubmitting(false);
         return;
       }
 
-      notify.success("Event Created! 🎉", `"${payload.title}" has been published.`);
+      notify.success(
+        "Event Created! 🎉",
+        `"${payload.title}" has been published.`
+      );
+
       setForm(INITIAL_FORM);
+
       router.push("/upcoming-events");
     } catch (err: unknown) {
       notify.error(
         "Network Error",
-        err instanceof Error ? err.message : "Could not reach the server."
+        err instanceof Error
+          ? err.message
+          : "Could not reach the server."
       );
+
       setIsSubmitting(false);
     }
   };
@@ -203,16 +283,19 @@ export default function CreateEventPage() {
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-gradient-to-br from-emerald-50/60 via-background to-background dark:from-emerald-950/20 dark:via-background dark:to-background">
+
       <div className="border-b bg-background/70 backdrop-blur-sm">
         <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
           <div className="flex items-center gap-4">
             <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-700 text-white shadow-md">
               <PlusCircle className="h-7 w-7" />
             </div>
+
             <div>
               <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
                 Create a New Event
               </h1>
+
               <p className="mt-1 text-sm text-muted-foreground">
                 Organise a community event and invite people to join in.
               </p>
@@ -223,24 +306,36 @@ export default function CreateEventPage() {
 
       <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
         <Card className="shadow-sm">
+
           <CardHeader className="pb-4">
             <CardTitle className="flex items-center gap-2 text-base font-semibold">
               <HeartHandshake className="h-5 w-5 text-emerald-700" />
               Event Details
             </CardTitle>
+
             <CardDescription>
-              All fields marked with <span className="text-destructive">*</span> are
-              required.
+              All fields marked with{" "}
+              <span className="text-destructive">*</span> are required.
             </CardDescription>
           </CardHeader>
 
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6" noValidate>
+            <form
+              onSubmit={handleSubmit}
+              className="space-y-6"
+              noValidate
+            >
+
+              {/* Event Title */}
               <div className="space-y-1.5">
-                <Label htmlFor="title" className="flex items-center gap-1.5 font-medium">
+                <Label
+                  htmlFor="title"
+                  className="flex items-center gap-1.5 font-medium"
+                >
                   <FileText className="h-4 w-4 text-emerald-700" />
                   Event Title <span className="text-destructive">*</span>
                 </Label>
+
                 <Input
                   id="title"
                   value={form.title}
@@ -251,11 +346,13 @@ export default function CreateEventPage() {
                   required
                   className="h-10"
                 />
+
                 <p className="text-[11px] text-muted-foreground">
                   {form.title.length}/120 characters
                 </p>
               </div>
 
+              {/* Description */}
               <div className="space-y-1.5">
                 <Label
                   htmlFor="description"
@@ -264,6 +361,7 @@ export default function CreateEventPage() {
                   <FileText className="h-4 w-4 text-emerald-700" />
                   Description <span className="text-destructive">*</span>
                 </Label>
+
                 <Textarea
                   id="description"
                   value={form.description}
@@ -275,17 +373,21 @@ export default function CreateEventPage() {
                   required
                   className="resize-none"
                 />
+
                 <p className="text-[11px] text-muted-foreground">
                   {form.description.length}/2000 · minimum 20 characters
                 </p>
               </div>
 
+              {/* Event Type and Location */}
               <div className="grid gap-4 sm:grid-cols-2">
+
                 <div className="space-y-1.5">
                   <Label className="flex items-center gap-1.5 font-medium">
                     <Tag className="h-4 w-4 text-emerald-700" />
                     Event Type <span className="text-destructive">*</span>
                   </Label>
+
                   <Select
                     value={form.eventType}
                     onValueChange={(val) => setField("eventType", val ?? "")}
@@ -294,6 +396,7 @@ export default function CreateEventPage() {
                     <SelectTrigger className="h-10 w-full">
                       <SelectValue placeholder="Select a type…" />
                     </SelectTrigger>
+
                     <SelectContent>
                       {EVENT_TYPES.map((t) => (
                         <SelectItem key={t.value} value={t.value}>
@@ -304,7 +407,6 @@ export default function CreateEventPage() {
                   </Select>
                 </div>
 
-               
                 <div className="space-y-1.5">
                   <Label
                     htmlFor="location"
@@ -313,6 +415,7 @@ export default function CreateEventPage() {
                     <MapPin className="h-4 w-4 text-emerald-700" />
                     Location <span className="text-destructive">*</span>
                   </Label>
+
                   <Input
                     id="location"
                     value={form.location}
@@ -324,10 +427,12 @@ export default function CreateEventPage() {
                     className="h-10"
                   />
                 </div>
+
               </div>
 
-             
+              {/* Event Date and Thumbnail URL */}
               <div className="grid gap-4 sm:grid-cols-2">
+
                 <div className="space-y-1.5">
                   <Label
                     htmlFor="eventDate"
@@ -336,6 +441,7 @@ export default function CreateEventPage() {
                     <CalendarDays className="h-4 w-4 text-emerald-700" />
                     Event Date <span className="text-destructive">*</span>
                   </Label>
+
                   <Input
                     id="eventDate"
                     type="date"
@@ -347,36 +453,44 @@ export default function CreateEventPage() {
                     required
                     className="h-10"
                   />
+
                   <p className="text-[11px] text-muted-foreground">
                     Must be a future date {minDate ? `(from ${minDate})` : ""}
                   </p>
                 </div>
 
+                {/* Mandatory Thumbnail Image URL */}
                 <div className="space-y-1.5">
                   <Label
                     htmlFor="thumbnailURL"
                     className="flex items-center gap-1.5 font-medium"
                   >
                     <ImageIcon className="h-4 w-4 text-emerald-700" />
-                    Thumbnail Image URL{" "}
-                    <span className="text-muted-foreground font-normal">(optional)</span>
+                    Thumbnail Image URL
+                    <span className="text-destructive">*</span>
                   </Label>
+
                   <Input
                     id="thumbnailURL"
                     type="url"
                     value={form.thumbnailURL}
-                    onChange={(e) => setField("thumbnailURL", e.target.value)}
+                    onChange={(e) =>
+                      setField("thumbnailURL", e.target.value)
+                    }
                     placeholder="https://images.unsplash.com/photo-..."
                     disabled={isSubmitting}
+                    required
                     className="h-10"
                   />
+
                   <p className="text-[11px] text-muted-foreground">
-                    Direct image link ending in .jpg / .png / .webp
+                    Required. Provide a valid direct image URL (.jpg / .png / .webp).
                   </p>
                 </div>
+
               </div>
 
-              
+              {/* Thumbnail Preview */}
               {form.thumbnailURL.trim() && (
                 <div className="overflow-hidden rounded-xl border border-border/60 bg-muted/30">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -386,29 +500,36 @@ export default function CreateEventPage() {
                     className="max-h-48 w-full object-cover"
                     referrerPolicy="no-referrer"
                     onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).style.display = "none";
+                      e.currentTarget.style.display = "none";
                     }}
                   />
+
                   <p className="px-3 py-1.5 text-[11px] text-muted-foreground">
                     Preview — image must be a direct URL
                   </p>
                 </div>
               )}
 
+              {/* Event Organiser */}
               <div className="rounded-xl border border-emerald-700/20 bg-emerald-50/60 px-4 py-3 dark:bg-emerald-950/20">
                 <p className="text-xs text-muted-foreground">
                   <span className="font-semibold text-emerald-800 dark:text-emerald-300">
                     Event organiser:
                   </span>{" "}
                   {session.user.name ? `${session.user.name} ` : ""}
-                  <span className="font-mono text-xs">{session.user.email}</span>
+                  <span className="font-mono text-xs">
+                    {session.user.email}
+                  </span>
                 </p>
+
                 <p className="mt-0.5 text-[11px] text-muted-foreground">
                   Your email is saved with the event so you can manage it later.
                 </p>
               </div>
 
+              {/* Action Buttons */}
               <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
+
                 <Button
                   type="button"
                   variant="outline"
@@ -418,6 +539,7 @@ export default function CreateEventPage() {
                 >
                   Cancel
                 </Button>
+
                 <Button
                   type="submit"
                   disabled={isSubmitting}
@@ -435,7 +557,9 @@ export default function CreateEventPage() {
                     </>
                   )}
                 </Button>
+
               </div>
+
             </form>
           </CardContent>
         </Card>
@@ -443,4 +567,3 @@ export default function CreateEventPage() {
     </div>
   );
 }
-

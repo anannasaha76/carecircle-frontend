@@ -49,7 +49,7 @@ const FEATURES = [
   },
   {
     icon: Users,
-    title: "1-Click Volunteer RSVP",
+    title: "1-Click Volunteer Join",
     description:
       "Join events instantly with your account. Keep track of all events you are attending in your personalized volunteer dashboard.",
   },
@@ -213,10 +213,7 @@ export default function HomePage() {
           <div className="grid gap-12 lg:grid-cols-12 lg:items-center">
             {/* Left Column: Heading and CTAs */}
             <div className="lg:col-span-7 space-y-6 text-center lg:text-left">
-              <div className="inline-flex items-center gap-2 rounded-full border border-emerald-700/20 bg-emerald-100/80 px-3.5 py-1 text-xs font-semibold text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300">
-                <Sparkles className="h-3.5 w-3.5" />
-                <span>Empowering Grassroots Social Action</span>
-              </div>
+
 
               <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-6xl text-foreground leading-[1.15]">
                 Small Actions,{" "}
@@ -301,20 +298,7 @@ export default function HomePage() {
                   </div>
                 </div>
 
-                {/* Floating Highlight Card */}
-                <div className="hidden sm:flex absolute -bottom-6 -left-6 items-center gap-3 rounded-xl border border-border/80 bg-background/95 backdrop-blur-md p-3.5 shadow-lg">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-700 text-white">
-                    <HeartHandshake className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground font-medium">
-                      Community Service
-                    </p>
-                    <p className="text-sm font-extrabold text-foreground">
-                      Together We Can
-                    </p>
-                  </div>
-                </div>
+
               </div>
             </div>
           </div>
@@ -372,10 +356,6 @@ export default function HomePage() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between mb-12">
             <div className="max-w-xl space-y-2">
-              <div className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-emerald-700">
-                <CalendarDays className="h-4 w-4" />
-                Live From Database
-              </div>
               <h2 className="text-3xl font-extrabold tracking-tight sm:text-4xl text-foreground">
                 Recent Upcoming Events
               </h2>

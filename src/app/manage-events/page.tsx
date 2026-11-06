@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState, useMemo, useSyncExternalStore } from "react";
@@ -51,6 +52,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+
 interface MyEventItem {
   _id: string;
   title: string;
@@ -58,7 +60,7 @@ interface MyEventItem {
   eventType: string;
   thumbnailURL: string | null;
   location: string;
-  eventDate: string; // YYYY-MM-DD
+  eventDate: string;
   creatorEmail: string;
   creatorName?: string | null;
   joinedCount?: number;
@@ -90,14 +92,16 @@ const EVENT_TYPES = [
 const DEFAULT_EVENT_IMAGE =
   "https://images.unsplash.com/photo-1559027615-cd4628902d4a?auto=format&fit=crop&w=800&q=80";
 
-const emptySubscribe = () => () => {};
+const emptySubscribe = () => () => { };
 
 function getTomorrowString() {
   const d = new Date();
   d.setDate(d.getDate() + 1);
+
   const yyyy = d.getFullYear();
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");
+
   return `${yyyy}-${mm}-${dd}`;
 }
 
@@ -105,6 +109,7 @@ function formatEventDate(dateString: string) {
   try {
     const [year, month, day] = dateString.split("-").map(Number);
     const date = new Date(year, month - 1, day);
+
     return date.toLocaleDateString("en-US", {
       weekday: "short",
       month: "short",
@@ -118,7 +123,7 @@ function formatEventDate(dateString: string) {
 
 export default function ManageEventsPage() {
   const router = useRouter();
-  const { data: session, isPending } = useSession();
+  const { data: session, isPending, refetch } = useSession();
 
   const [myEvents, setMyEvents] = useState<MyEventItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -126,6 +131,7 @@ export default function ManageEventsPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [editingEvent, setEditingEvent] = useState<MyEventItem | null>(null);
+
   const [editForm, setEditForm] = useState<EditFormState>({
     title: "",
     description: "",
@@ -134,27 +140,47 @@ export default function ManageEventsPage() {
     location: "",
     eventDate: "",
   });
+
   const [isUpdating, setIsUpdating] = useState(false);
 
   const apiUrl =
     process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
   const minDate = useSyncExternalStore(
     emptySubscribe,
     getTomorrowString,
     () => ""
   );
+
   useEffect(() => {
     if (!isPending && !session) {
-      notify.error("Authentication Required", "Please sign in to manage your events.");
-      router.push("/login");
+      if (refetch) {
+        refetch().catch(() => { });
+      }
+
+      const timeout = setTimeout(() => {
+        if (!session) {
+          notify.error(
+            "Authentication Required",
+            "Please sign in to manage your events."
+          );
+          router.push("/login?callbackUrl=/manage-events");
+        }
+      }, 400);
+
+      return () => clearTimeout(timeout);
     }
-  }, [session, isPending, router]);
+  }, [session, isPending, router, refetch]);
+
   const fetchMyEvents = async () => {
     if (!session?.user?.email) return;
+
     setLoading(true);
     setError(null);
+
     try {
       const token = await getTokenFromClient();
+
       const res = await fetch(
         `${apiUrl}/my-events?email=${encodeURIComponent(session.user.email)}`,
         {
@@ -162,10 +188,15 @@ export default function ManageEventsPage() {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         }
       );
+
       if (!res.ok) {
-        throw new Error(`Failed to load your events (Status: ${res.status})`);
+        throw new Error(
+          `Failed to load your events (Status: ${res.status})`
+        );
       }
+
       const data = await res.json();
+
       if (data.success && Array.isArray(data.data)) {
         setMyEvents(data.data);
       } else {
@@ -173,7 +204,9 @@ export default function ManageEventsPage() {
       }
     } catch (err: unknown) {
       setError(
-        err instanceof Error ? err.message : "Could not connect to the backend server."
+        err instanceof Error
+          ? err.message
+          : "Could not connect to the backend server."
       );
     } finally {
       setLoading(false);
@@ -185,9 +218,12 @@ export default function ManageEventsPage() {
 
     async function load() {
       if (!session?.user?.email) return;
+
       setError(null);
+
       try {
         const token = await getTokenFromClient();
+
         const res = await fetch(
           `${apiUrl}/my-events?email=${encodeURIComponent(session.user.email)}`,
           {
@@ -195,10 +231,15 @@ export default function ManageEventsPage() {
             headers: token ? { Authorization: `Bearer ${token}` } : {},
           }
         );
+
         if (!res.ok) {
-          throw new Error(`Failed to load your events (Status: ${res.status})`);
+          throw new Error(
+            `Failed to load your events (Status: ${res.status})`
+          );
         }
+
         const data = await res.json();
+
         if (!ignore) {
           if (data.success && Array.isArray(data.data)) {
             setMyEvents(data.data);
@@ -209,7 +250,9 @@ export default function ManageEventsPage() {
       } catch (err: unknown) {
         if (!ignore) {
           setError(
-            err instanceof Error ? err.message : "Could not connect to the backend server."
+            err instanceof Error
+              ? err.message
+              : "Could not connect to the backend server."
           );
         }
       } finally {
@@ -227,8 +270,10 @@ export default function ManageEventsPage() {
       ignore = true;
     };
   }, [session, apiUrl]);
+
   const handleOpenEdit = (event: MyEventItem) => {
     setEditingEvent(event);
+
     setEditForm({
       title: event.title,
       description: event.description,
@@ -238,27 +283,60 @@ export default function ManageEventsPage() {
       eventDate: event.eventDate,
     });
   };
+
+  // Validate all update form fields.
   const validateUpdateForm = (): string | null => {
-    if (!editForm.title.trim()) return "Title is required.";
-    if (editForm.title.trim().length < 5) return "Title must be at least 5 characters.";
-    if (!editForm.description.trim()) return "Description is required.";
-    if (editForm.description.trim().length < 20)
+    if (!editForm.title.trim()) {
+      return "Title is required.";
+    }
+
+    if (editForm.title.trim().length < 5) {
+      return "Title must be at least 5 characters.";
+    }
+
+    if (!editForm.description.trim()) {
+      return "Description is required.";
+    }
+
+    if (editForm.description.trim().length < 20) {
       return "Description must be at least 20 characters.";
-    if (!editForm.eventType) return "Please select an event type.";
-    if (!editForm.location.trim()) return "Location is required.";
-    if (!editForm.eventDate) return "Event date is required.";
+    }
+
+    if (!editForm.eventType) {
+      return "Please select an event type.";
+    }
+
+    if (!editForm.location.trim()) {
+      return "Location is required.";
+    }
+
+    if (!editForm.eventDate) {
+      return "Event date is required.";
+    }
 
     const selected = new Date(editForm.eventDate);
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (selected <= today) return "Event date must be in the future.";
 
-    if (editForm.thumbnailURL.trim()) {
-      try {
-        new URL(editForm.thumbnailURL.trim());
-      } catch {
-        return "Thumbnail must be a valid URL (or leave empty).";
+    today.setHours(0, 0, 0, 0);
+
+    if (selected <= today) {
+      return "Event date must be in the future.";
+    }
+
+    // Thumbnail URL is now required.
+    if (!editForm.thumbnailURL.trim()) {
+      return "Thumbnail image URL is required.";
+    }
+
+    // Validate thumbnail URL and protocol.
+    try {
+      const url = new URL(editForm.thumbnailURL.trim());
+
+      if (url.protocol !== "https:" && url.protocol !== "http:") {
+        return "Please provide a valid image URL.";
       }
+    } catch {
+      return "Please provide a valid image URL.";
     }
 
     return null;
@@ -266,20 +344,24 @@ export default function ManageEventsPage() {
 
   const handleUpdateEvent = async (e: React.FormEvent) => {
     e.preventDefault();
+
     if (!editingEvent || !session?.user?.email) return;
 
     const validationError = validateUpdateForm();
+
     if (validationError) {
       notify.error("Validation Error", validationError);
       return;
     }
 
     setIsUpdating(true);
+
     const payload = {
       title: editForm.title.trim(),
       description: editForm.description.trim(),
       eventType: editForm.eventType,
-      thumbnailURL: editForm.thumbnailURL.trim() || null,
+      // Always send the required thumbnail URL.
+      thumbnailURL: editForm.thumbnailURL.trim(),
       location: editForm.location.trim(),
       eventDate: editForm.eventDate,
       creatorEmail: session.user.email,
@@ -287,6 +369,7 @@ export default function ManageEventsPage() {
 
     try {
       const token = await getTokenFromClient();
+
       const res = await fetch(`${apiUrl}/events/${editingEvent._id}`, {
         method: "PUT",
         headers: {
@@ -295,10 +378,15 @@ export default function ManageEventsPage() {
         },
         body: JSON.stringify(payload),
       });
+
       const data = await res.json();
 
       if (!res.ok) {
-        notify.error("Update Failed", data?.message || "Could not update event.");
+        notify.error(
+          "Update Failed",
+          data?.message || "Could not update event."
+        );
+
         setIsUpdating(false);
         return;
       }
@@ -311,7 +399,11 @@ export default function ManageEventsPage() {
         )
       );
 
-      notify.success("Event Updated", `"${payload.title}" has been updated.`);
+      notify.success(
+        "Event Updated",
+        `"${payload.title}" has been updated.`
+      );
+
       setEditingEvent(null);
     } catch (err: unknown) {
       notify.error(
@@ -322,12 +414,14 @@ export default function ManageEventsPage() {
       setIsUpdating(false);
     }
   };
+
   const handleDeleteEvent = async (event: MyEventItem) => {
     if (!session?.user?.email) return;
 
     const confirmed = window.confirm(
       `Are you sure you want to delete "${event.title}"?\n\nThis will permanently remove the event and all participant registrations. This action cannot be undone.`
     );
+
     if (!confirmed) return;
 
     setDeletingId(event._id);
@@ -335,6 +429,7 @@ export default function ManageEventsPage() {
 
     try {
       const token = await getTokenFromClient();
+
       const res = await fetch(
         `${apiUrl}/events/${event._id}?email=${encodeURIComponent(
           session.user.email
@@ -344,17 +439,28 @@ export default function ManageEventsPage() {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         }
       );
+
       const data = await res.json();
 
       if (!res.ok) {
-        notify.error("Delete Failed", data?.message || "Could not delete event.");
+        notify.error(
+          "Delete Failed",
+          data?.message || "Could not delete event."
+        );
+
         setIsDeleting(false);
         setDeletingId(null);
         return;
       }
 
-      setMyEvents((prev) => prev.filter((ev) => ev._id !== event._id));
-      notify.success("Event Deleted", `"${event.title}" has been deleted.`);
+      setMyEvents((prev) =>
+        prev.filter((ev) => ev._id !== event._id)
+      );
+
+      notify.success(
+        "Event Deleted",
+        `"${event.title}" has been deleted.`
+      );
     } catch (err: unknown) {
       notify.error(
         "Network Error",
@@ -365,14 +471,18 @@ export default function ManageEventsPage() {
       setDeletingId(null);
     }
   };
+
   const stats = useMemo(() => {
     const total = myEvents.length;
     let totalVolunteers = 0;
+
     myEvents.forEach((ev) => {
       totalVolunteers += ev.joinedCount || 0;
     });
+
     return { total, totalVolunteers };
   }, [myEvents]);
+
   if (isPending) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
@@ -395,9 +505,11 @@ export default function ManageEventsPage() {
                 <FolderKanban className="h-3.5 w-3.5" />
                 Organiser Dashboard
               </div>
+
               <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">
                 Manage My Events
               </h1>
+
               <p className="mt-1.5 text-sm sm:text-base text-muted-foreground">
                 Review, update, or remove social events you have organized in your community.
               </p>
@@ -413,11 +525,14 @@ export default function ManageEventsPage() {
 
           <div className="mt-8 grid grid-cols-2 gap-3 sm:gap-4 max-w-md">
             <div className="rounded-xl border border-border/70 bg-card p-3 sm:p-4 text-center">
-              <p className="text-xs text-muted-foreground font-medium">Events Organized</p>
+              <p className="text-xs text-muted-foreground font-medium">
+                Events Organized
+              </p>
               <p className="text-2xl font-extrabold text-foreground mt-1">
                 {stats.total}
               </p>
             </div>
+
             <div className="rounded-xl border border-emerald-700/20 bg-emerald-50/50 dark:bg-emerald-950/30 p-3 sm:p-4 text-center">
               <p className="text-xs text-emerald-800 dark:text-emerald-300 font-medium">
                 Total Volunteers
@@ -435,13 +550,17 @@ export default function ManageEventsPage() {
           <div className="mb-8 rounded-xl border border-destructive/30 bg-destructive/10 p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <AlertCircle className="h-5 w-5 text-destructive shrink-0" />
+
               <div>
                 <p className="text-sm font-semibold text-destructive">
                   Could not load your events
                 </p>
-                <p className="text-xs text-muted-foreground mt-0.5">{error}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {error}
+                </p>
               </div>
             </div>
+
             <Button
               variant="outline"
               size="sm"
@@ -457,16 +576,22 @@ export default function ManageEventsPage() {
         {loading && (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 3 }).map((_, idx) => (
-              <Card key={idx} className="overflow-hidden border border-border/60">
+              <Card
+                key={idx}
+                className="overflow-hidden border border-border/60"
+              >
                 <Skeleton className="h-44 w-full rounded-none" />
+
                 <CardHeader className="space-y-2 pb-2">
                   <Skeleton className="h-4 w-28 rounded-full" />
                   <Skeleton className="h-6 w-3/4 rounded" />
                 </CardHeader>
+
                 <CardContent className="space-y-2 pb-4">
                   <Skeleton className="h-4 w-full" />
                   <Skeleton className="h-4 w-1/2" />
                 </CardContent>
+
                 <CardFooter className="pt-2">
                   <Skeleton className="h-9 w-full rounded-md" />
                 </CardFooter>
@@ -474,16 +599,23 @@ export default function ManageEventsPage() {
             ))}
           </div>
         )}
+
         {!loading && !error && myEvents.length === 0 && (
           <div className="flex min-h-[40vh] flex-col items-center justify-center rounded-2xl border border-dashed border-border/80 bg-muted/20 px-6 py-16 text-center">
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 mb-4">
               <FolderKanban className="h-8 w-8" />
             </div>
-            <h3 className="text-lg font-bold tracking-tight">No Events Created Yet</h3>
+
+            <h3 className="text-lg font-bold tracking-tight">
+              No Events Created Yet
+            </h3>
+
             <p className="mt-1.5 max-w-sm text-sm text-muted-foreground">
-              You haven&apos;t created any community service events. Start a cause in your
-              neighborhood and invite volunteers to make an impact!
+              You haven&apos;t created any community service events. Start a
+              cause in your neighborhood and invite volunteers to make an
+              impact!
             </p>
+
             <div className="mt-6 flex gap-3">
               <Link href="/create-event">
                 <Button className="bg-emerald-700 hover:bg-emerald-800 text-white gap-2 text-xs">
@@ -494,10 +626,12 @@ export default function ManageEventsPage() {
             </div>
           </div>
         )}
+
         {!loading && !error && myEvents.length > 0 && (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {myEvents.map((event) => {
-              const isDeletingThis = isDeleting && deletingId === event._id;
+              const isDeletingThis =
+                isDeleting && deletingId === event._id;
 
               return (
                 <Card
@@ -513,7 +647,8 @@ export default function ManageEventsPage() {
                       referrerPolicy="no-referrer"
                       className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                       onError={(e) => {
-                        (e.currentTarget as HTMLImageElement).src = DEFAULT_EVENT_IMAGE;
+                        (e.currentTarget as HTMLImageElement).src =
+                          DEFAULT_EVENT_IMAGE;
                       }}
                     />
 
@@ -531,6 +666,7 @@ export default function ManageEventsPage() {
                       </Badge>
                     </div>
                   </div>
+
                   <CardHeader className="pb-2">
                     <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
                       <CalendarDays className="h-3.5 w-3.5 shrink-0" />
@@ -541,6 +677,7 @@ export default function ManageEventsPage() {
                       {event.title}
                     </CardTitle>
                   </CardHeader>
+
                   <CardContent className="space-y-2 flex-1 pb-4">
                     <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
                       {event.description}
@@ -551,6 +688,7 @@ export default function ManageEventsPage() {
                       <span className="truncate">{event.location}</span>
                     </div>
                   </CardContent>
+
                   <CardFooter className="flex items-center gap-2 pt-0 border-t border-border/40 p-3 bg-muted/10">
                     <Button
                       variant="outline"
@@ -574,6 +712,7 @@ export default function ManageEventsPage() {
                       ) : (
                         <Trash2 className="h-3.5 w-3.5" />
                       )}
+
                       <span>Delete</span>
                     </Button>
 
@@ -594,6 +733,8 @@ export default function ManageEventsPage() {
           </div>
         )}
       </main>
+
+      {/* Update Event Dialog */}
       <Dialog
         open={Boolean(editingEvent)}
         onOpenChange={(open) => {
@@ -608,6 +749,7 @@ export default function ManageEventsPage() {
               <Pencil className="h-5 w-5 text-emerald-700" />
               Update Event
             </DialogTitle>
+
             <DialogDescription>
               Modify event information. Only you (the creator) can update this event.
             </DialogDescription>
@@ -619,11 +761,15 @@ export default function ManageEventsPage() {
               <Label htmlFor="edit-title" className="text-sm font-medium">
                 Event Title <span className="text-destructive">*</span>
               </Label>
+
               <Input
                 id="edit-title"
                 value={editForm.title}
                 onChange={(e) =>
-                  setEditForm((prev) => ({ ...prev, title: e.target.value }))
+                  setEditForm((prev) => ({
+                    ...prev,
+                    title: e.target.value,
+                  }))
                 }
                 placeholder="Event title"
                 disabled={isUpdating}
@@ -631,15 +777,24 @@ export default function ManageEventsPage() {
                 required
               />
             </div>
+
+            {/* Description */}
             <div className="space-y-1.5">
-              <Label htmlFor="edit-description" className="text-sm font-medium">
+              <Label
+                htmlFor="edit-description"
+                className="text-sm font-medium"
+              >
                 Description <span className="text-destructive">*</span>
               </Label>
+
               <Textarea
                 id="edit-description"
                 value={editForm.description}
                 onChange={(e) =>
-                  setEditForm((prev) => ({ ...prev, description: e.target.value }))
+                  setEditForm((prev) => ({
+                    ...prev,
+                    description: e.target.value,
+                  }))
                 }
                 placeholder="Event description..."
                 disabled={isUpdating}
@@ -648,21 +803,28 @@ export default function ManageEventsPage() {
                 required
               />
             </div>
+
             <div className="grid gap-3 sm:grid-cols-2">
+              {/* Event Type */}
               <div className="space-y-1.5">
                 <Label className="text-sm font-medium">
                   Event Type <span className="text-destructive">*</span>
                 </Label>
+
                 <Select
                   value={editForm.eventType}
                   onValueChange={(val) =>
-                    setEditForm((prev) => ({ ...prev, eventType: val ?? "" }))
+                    setEditForm((prev) => ({
+                      ...prev,
+                      eventType: val ?? "",
+                    }))
                   }
                   disabled={isUpdating}
                 >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select type..." />
                   </SelectTrigger>
+
                   <SelectContent>
                     {EVENT_TYPES.map((t) => (
                       <SelectItem key={t.value} value={t.value}>
@@ -673,15 +835,23 @@ export default function ManageEventsPage() {
                 </Select>
               </div>
 
+              {/* Location */}
               <div className="space-y-1.5">
-                <Label htmlFor="edit-location" className="text-sm font-medium">
+                <Label
+                  htmlFor="edit-location"
+                  className="text-sm font-medium"
+                >
                   Location <span className="text-destructive">*</span>
                 </Label>
+
                 <Input
                   id="edit-location"
                   value={editForm.location}
                   onChange={(e) =>
-                    setEditForm((prev) => ({ ...prev, location: e.target.value }))
+                    setEditForm((prev) => ({
+                      ...prev,
+                      location: e.target.value,
+                    }))
                   }
                   placeholder="e.g. Mirpur 10, Dhaka"
                   disabled={isUpdating}
@@ -689,17 +859,23 @@ export default function ManageEventsPage() {
                 />
               </div>
             </div>
+
             <div className="grid gap-3 sm:grid-cols-2">
+              {/* Event Date */}
               <div className="space-y-1.5">
                 <Label htmlFor="edit-date" className="text-sm font-medium">
                   Event Date <span className="text-destructive">*</span>
                 </Label>
+
                 <Input
                   id="edit-date"
                   type="date"
                   value={editForm.eventDate}
                   onChange={(e) =>
-                    setEditForm((prev) => ({ ...prev, eventDate: e.target.value }))
+                    setEditForm((prev) => ({
+                      ...prev,
+                      eventDate: e.target.value,
+                    }))
                   }
                   min={minDate || undefined}
                   max="2030-12-31"
@@ -708,23 +884,38 @@ export default function ManageEventsPage() {
                 />
               </div>
 
+              {/* Required Thumbnail URL */}
               <div className="space-y-1.5">
-                <Label htmlFor="edit-thumbnail" className="text-sm font-medium">
-                  Thumbnail Image URL
+                <Label
+                  htmlFor="edit-thumbnail"
+                  className="text-sm font-medium"
+                >
+                  Thumbnail Image URL{" "}
+                  <span className="text-destructive">*</span>
                 </Label>
+
                 <Input
                   id="edit-thumbnail"
                   type="url"
                   value={editForm.thumbnailURL}
                   onChange={(e) =>
-                    setEditForm((prev) => ({ ...prev, thumbnailURL: e.target.value }))
+                    setEditForm((prev) => ({
+                      ...prev,
+                      thumbnailURL: e.target.value,
+                    }))
                   }
                   placeholder="https://images.unsplash.com/photo-..."
                   disabled={isUpdating}
+                  required
                 />
+
+                <p className="text-xs text-muted-foreground">
+                  Required. Provide a valid image URL.
+                </p>
               </div>
             </div>
 
+            {/* Thumbnail Preview */}
             {editForm.thumbnailURL.trim() && (
               <div className="overflow-hidden rounded-lg border border-border/60 bg-muted/20">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -734,7 +925,8 @@ export default function ManageEventsPage() {
                   className="max-h-36 w-full object-cover"
                   referrerPolicy="no-referrer"
                   onError={(e) => {
-                    (e.currentTarget as HTMLImageElement).style.display = "none";
+                    (e.currentTarget as HTMLImageElement).style.display =
+                      "none";
                   }}
                 />
               </div>
@@ -749,6 +941,7 @@ export default function ManageEventsPage() {
               >
                 Cancel
               </Button>
+
               <Button
                 type="submit"
                 disabled={isUpdating}
@@ -773,4 +966,3 @@ export default function ManageEventsPage() {
     </div>
   );
 }
-

@@ -1,9 +1,9 @@
 "use client";
+
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useSyncExternalStore } from "react";
 import {
-  HeartHandshake,
   CalendarDays,
   Home,
   Menu,
@@ -18,6 +18,7 @@ import {
   UserPen,
   Loader2,
 } from "lucide-react";
+import { CareCircleLogo } from "@/components/shared/CareCircleLogo";
 
 import { useTheme } from "next-themes";
 import { useSession, signOut, updateUser } from "@/lib/auth-client";
@@ -91,7 +92,6 @@ const privateLinks = [
 
 const emptySubscribe = () => () => { };
 
-
 function UserAvatar({
   src,
   alt,
@@ -159,57 +159,75 @@ export default function Navbar() {
 
   const handleLogout = async () => {
     try {
-      await signOut();
-      notify.success("Logged Out", "You have been signed out successfully.");
       setMobileOpen(false);
       router.push("/");
+      await signOut();
+      notify.success("Logged Out", "You have been signed out successfully.");
       router.refresh();
     } catch (err: unknown) {
-      notify.error("Logout Error", err instanceof Error ? err.message : "Failed to log out.");
+      notify.error(
+        "Logout Error",
+        err instanceof Error ? err.message : "Failed to log out."
+      );
     }
   };
 
   const openEditProfile = () => {
     setEditName(session?.user?.name || "");
+
     const photo =
       session?.user?.image ||
       (session?.user as { photoURL?: string })?.photoURL ||
       "";
+
     setEditPhotoURL(photo);
     setEditProfileOpen(true);
   };
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
+
     if (!editName.trim()) {
       notify.error("Validation Error", "Name cannot be empty.");
       return;
     }
 
     setIsUpdating(true);
+
     try {
       const trimmedPhoto = editPhotoURL.trim() || undefined;
+
       const res = await updateUser({
         name: editName.trim(),
         image: trimmedPhoto,
       });
 
       if (res?.error) {
-        notify.error("Update Failed", res.error.message || "Failed to update profile.");
+        notify.error(
+          "Update Failed",
+          res.error.message || "Failed to update profile."
+        );
         setIsUpdating(false);
         return;
       }
 
-      notify.success("Profile Updated", "Your profile details have been saved.");
+      notify.success(
+        "Profile Updated",
+        "Your profile details have been saved."
+      );
+
       setEditProfileOpen(false);
       setIsUpdating(false);
+
       if (refetch) refetch();
+
       router.refresh();
     } catch (err: unknown) {
       notify.error(
         "Update Error",
         err instanceof Error ? err.message : "Failed to update profile."
       );
+
       setIsUpdating(false);
     }
   };
@@ -231,7 +249,7 @@ export default function Navbar() {
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2.5 group">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-700 text-white shadow-sm transition-transform group-hover:scale-105">
-              <HeartHandshake className="h-6 w-6" />
+              <CareCircleLogo className="h-6 w-6" />
             </div>
 
             <div>
@@ -254,7 +272,9 @@ export default function Navbar() {
                 <Link
                   key={link.href}
                   href={link.href}
-                  className={`flex items-center gap-2 text-sm font-medium transition-colors hover:text-emerald-700 ${active ? "text-emerald-700 font-semibold" : "text-muted-foreground"
+                  className={`flex items-center gap-2 text-sm font-medium transition-colors hover:text-emerald-700 ${active
+                      ? "text-emerald-700 font-semibold"
+                      : "text-muted-foreground"
                     }`}
                 >
                   <Icon className="h-4 w-4" />
@@ -284,7 +304,7 @@ export default function Navbar() {
             {/* Conditional Auth Rendering */}
             {session?.user ? (
               <div className="flex items-center gap-3">
-                {/* Profile Avatar — Tooltip wraps the DropdownMenu trigger */}
+                {/* Profile Avatar */}
                 <TooltipProvider delay={200}>
                   <DropdownMenu>
                     <Tooltip>
@@ -307,12 +327,18 @@ export default function Navbar() {
                           />
                         </DropdownMenuTrigger>
                       </TooltipTrigger>
+
                       <TooltipContent side="bottom" align="center">
-                        <p className="font-medium">{session.user.name || "My Account"}</p>
+                        <p className="font-medium">
+                          {session.user.name || "My Account"}
+                        </p>
                       </TooltipContent>
                     </Tooltip>
 
-                    <DropdownMenuContent align="end" className="w-60 mt-2">
+                    <DropdownMenuContent
+                      align="end"
+                      className="w-60 mt-2"
+                    >
                       <DropdownMenuGroup>
                         <DropdownMenuLabel className="font-normal">
                           <div className="flex items-center gap-2.5 pb-1">
@@ -323,10 +349,12 @@ export default function Navbar() {
                               fallback={userInitial}
                               className="h-9 w-9"
                             />
+
                             <div className="flex flex-col min-w-0">
                               <p className="text-sm font-semibold leading-none truncate">
                                 {session.user.name || "User"}
                               </p>
+
                               <p className="text-xs leading-none text-muted-foreground truncate mt-1">
                                 {session.user.email}
                               </p>
@@ -352,6 +380,7 @@ export default function Navbar() {
                       <DropdownMenuGroup>
                         {privateLinks.map((item) => {
                           const Icon = item.icon;
+
                           return (
                             <DropdownMenuItem
                               key={item.href}
@@ -363,18 +392,6 @@ export default function Navbar() {
                             </DropdownMenuItem>
                           );
                         })}
-                      </DropdownMenuGroup>
-
-                      <DropdownMenuSeparator />
-
-                      <DropdownMenuGroup>
-                        <DropdownMenuItem
-                          onClick={handleLogout}
-                          className="cursor-pointer text-destructive focus:text-destructive flex items-center gap-2"
-                        >
-                          <LogOut className="h-4 w-4" />
-                          <span>Log Out</span>
-                        </DropdownMenuItem>
                       </DropdownMenuGroup>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -402,6 +419,7 @@ export default function Navbar() {
                     Login
                   </Button>
                 </Link>
+
                 <Link href="/register">
                   <Button
                     variant="outline"
@@ -443,10 +461,15 @@ export default function Navbar() {
                 <Menu className="h-5 w-5" />
               </SheetTrigger>
 
-              <SheetContent side="right" className="w-[300px] sm:w-[360px] p-6">
+              <SheetContent
+                side="right"
+                className="w-[300px] sm:w-[360px] p-6"
+              >
                 <SheetHeader className="sr-only">
                   <SheetTitle>Navigation Menu</SheetTitle>
-                  <SheetDescription>CareCircle navigation links</SheetDescription>
+                  <SheetDescription>
+                    CareCircle navigation links
+                  </SheetDescription>
                 </SheetHeader>
 
                 <div className="mt-4 flex flex-col gap-6">
@@ -457,8 +480,9 @@ export default function Navbar() {
                     className="flex items-center gap-2"
                   >
                     <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-700 text-white">
-                      <HeartHandshake className="h-5 w-5" />
+                      <CareCircleLogo className="h-5 w-5" />
                     </div>
+
                     <span className="text-xl font-bold tracking-tight">
                       Care<span className="text-emerald-700">Circle</span>
                     </span>
@@ -475,15 +499,18 @@ export default function Navbar() {
                           fallback={userInitial}
                           className="h-10 w-10"
                         />
+
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-semibold truncate">
                             {session.user.name || "User"}
                           </p>
+
                           <p className="text-xs text-muted-foreground truncate">
                             {session.user.email}
                           </p>
                         </div>
                       </div>
+
                       <Button
                         variant="ghost"
                         size="icon"
@@ -504,6 +531,7 @@ export default function Navbar() {
                     <p className="text-xs font-semibold text-muted-foreground px-3 uppercase tracking-wider">
                       Menu
                     </p>
+
                     {navLinks.map((link) => {
                       const Icon = link.icon;
                       const active = isActive(link.href);
@@ -531,6 +559,7 @@ export default function Navbar() {
                       <p className="text-xs font-semibold text-muted-foreground px-3 uppercase tracking-wider">
                         My Events
                       </p>
+
                       {privateLinks.map((item) => {
                         const Icon = item.icon;
                         const active = isActive(item.href);
@@ -566,13 +595,20 @@ export default function Navbar() {
                       </Button>
                     ) : (
                       <div className="flex flex-col gap-2">
-                        <Link href="/login" onClick={() => setMobileOpen(false)}>
+                        <Link
+                          href="/login"
+                          onClick={() => setMobileOpen(false)}
+                        >
                           <Button className="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-medium justify-center gap-2">
                             <LogIn className="h-4 w-4" />
                             Sign In
                           </Button>
                         </Link>
-                        <Link href="/register" onClick={() => setMobileOpen(false)}>
+
+                        <Link
+                          href="/register"
+                          onClick={() => setMobileOpen(false)}
+                        >
                           <Button
                             variant="outline"
                             className="w-full font-medium justify-center gap-2"
@@ -591,14 +627,18 @@ export default function Navbar() {
         </nav>
       </header>
 
-      {/* Update Profile Dialog (Optional/Bonus Requirement) */}
-      <Dialog open={editProfileOpen} onOpenChange={setEditProfileOpen}>
+      {/* Update Profile Dialog */}
+      <Dialog
+        open={editProfileOpen}
+        onOpenChange={setEditProfileOpen}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold flex items-center gap-2">
               <UserPen className="h-5 w-5 text-emerald-700" />
               Update Profile
             </DialogTitle>
+
             <DialogDescription>
               Update your display name and profile picture URL.
             </DialogDescription>
@@ -610,16 +650,24 @@ export default function Navbar() {
               <UserAvatar
                 src={editPhotoURL.trim() || null}
                 alt={editName}
-                fallback={editName ? editName.charAt(0).toUpperCase() : userInitial}
+                fallback={
+                  editName
+                    ? editName.charAt(0).toUpperCase()
+                    : userInitial
+                }
                 className="h-16 w-16"
               />
-              <p className="text-xs text-muted-foreground">Photo Preview</p>
+
+              <p className="text-xs text-muted-foreground">
+                Photo Preview
+              </p>
             </div>
 
             <div className="space-y-1.5">
               <Label htmlFor="edit-name" className="text-sm font-medium">
                 Full Name
               </Label>
+
               <Input
                 id="edit-name"
                 value={editName}
@@ -634,6 +682,7 @@ export default function Navbar() {
               <Label htmlFor="edit-photo" className="text-sm font-medium">
                 Profile Photo URL
               </Label>
+
               <Input
                 id="edit-photo"
                 type="url"
@@ -642,8 +691,10 @@ export default function Navbar() {
                 placeholder="https://images.unsplash.com/photo-..."
                 disabled={isUpdating}
               />
+
               <p className="text-[11px] text-muted-foreground">
-                Tip: Must be a direct image link (e.g. from Unsplash or ending in .jpg/.png), not an HTML website page.
+                Tip: Must be a direct image link (e.g. from Unsplash or ending
+                in .jpg/.png), not an HTML website page.
               </p>
             </div>
 
@@ -656,6 +707,7 @@ export default function Navbar() {
               >
                 Cancel
               </Button>
+
               <Button
                 type="submit"
                 disabled={isUpdating}

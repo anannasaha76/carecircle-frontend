@@ -2,17 +2,17 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
-  HeartHandshake,
   Eye,
   EyeOff,
   Loader2,
   Mail,
   Lock,
 } from "lucide-react";
+import { CareCircleLogo } from "@/components/shared/CareCircleLogo";
 
-import { signIn } from "@/lib/auth-client";
+import { signIn, useSession } from "@/lib/auth-client";
 import { notify } from "@/lib/notify";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,12 +28,25 @@ import { Label } from "@/components/ui/label";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { data: session, isPending, refetch } = useSession();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSocialLoading, setIsSocialLoading] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isPending && session?.user) {
+      const searchParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+      const callbackUrl = searchParams?.get("callbackUrl");
+      if (callbackUrl && callbackUrl !== "/login") {
+        router.replace(callbackUrl);
+      } else {
+        router.replace("/");
+      }
+    }
+  }, [session, isPending, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,14 +64,24 @@ export default function LoginPage() {
         password,
       });
 
-      if (res.error) {
+      if (res?.error) {
         notify.error("Sign In Failed", res.error.message || "Invalid email or password.");
         setIsLoading(false);
         return;
       }
 
       notify.success("Welcome Back!", "You have successfully signed in.");
-      router.push("/");
+      setIsLoading(false);
+      setEmail("");
+      setPassword("");
+
+      if (refetch) {
+        await refetch();
+      }
+
+      const searchParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+      const callbackUrl = searchParams?.get("callbackUrl") || "/";
+      router.push(callbackUrl);
       router.refresh();
     } catch (err: unknown) {
       notify.error(
@@ -66,15 +89,20 @@ export default function LoginPage() {
         err instanceof Error ? err.message : "An unexpected error occurred. Please try again."
       );
       setIsLoading(false);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleSocialSignIn = async (provider: "google") => {
     setIsSocialLoading(provider);
     try {
+      const searchParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+      const callbackUrl = searchParams?.get("callbackUrl") || "/";
+
       const res = await signIn.social({
         provider,
-        callbackURL: "/",
+        callbackURL: callbackUrl,
       });
 
       if (res?.error) {
@@ -87,6 +115,8 @@ export default function LoginPage() {
         err instanceof Error ? err.message : `Unable to initiate ${provider} authentication.`
       );
       setIsSocialLoading(null);
+    } finally {
+      setIsSocialLoading(null);
     }
   };
 
@@ -95,7 +125,7 @@ export default function LoginPage() {
       <Card className="w-full max-w-md shadow-lg border-border/60">
         <CardHeader className="space-y-2 text-center pb-6">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-700 text-white shadow-md">
-            <HeartHandshake className="h-7 w-7" />
+            <CareCircleLogo className="h-7 w-7" />
           </div>
           <CardTitle className="text-2xl font-bold tracking-tight">
             Sign In to CareCircle
