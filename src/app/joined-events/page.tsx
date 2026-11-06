@@ -1,5 +1,13 @@
+
 "use client";
-import { useEffect, useState, useMemo, useSyncExternalStore } from "react";
+
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -8,13 +16,16 @@ import {
   Tag,
   ArrowRight,
   CheckCircle2,
-  CalendarCheck2,
   Trash2,
   Loader2,
   AlertCircle,
   Sparkles,
   RefreshCw,
   Clock,
+  HeartHandshake,
+  CalendarClock,
+  TicketCheck,
+  ArrowUpRight,
 } from "lucide-react";
 
 import { useSession } from "@/lib/auth-client";
@@ -32,12 +43,11 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
-
 interface JoinedEventItem {
-  _id: string; // Registration document ID
-  eventId: string; // Associated event MongoDB ID
+  _id: string;
+  eventId: string;
   eventTitle: string;
-  eventDate: string; // YYYY-MM-DD
+  eventDate: string;
   eventType: string;
   location: string;
   thumbnailURL: string | null;
@@ -49,36 +59,62 @@ interface JoinedEventItem {
 const DEFAULT_EVENT_IMAGE =
   "https://images.unsplash.com/photo-1559027615-cd4628902d4a?auto=format&fit=crop&w=800&q=80";
 
-const emptySubscribe = () => () => {};
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+const emptySubscribe = () => () => { };
+
+function getTodayString() {
+  const date = new Date();
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
 
 function formatEventDate(dateString: string) {
-  try {
-    const [year, month, day] = dateString.split("-").map(Number);
-    const date = new Date(year, month - 1, day);
-    return date.toLocaleDateString("en-US", {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-  } catch {
-    return dateString;
-  }
+  if (!dateString) return "Date not available";
+
+  const [year, month, day] = dateString.split("-").map(Number);
+
+  if (!year || !month || !day) return dateString;
+
+  const date = new Date(year, month - 1, day);
+
+  if (Number.isNaN(date.getTime())) return dateString;
+
+  return date.toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 function formatJoinedDate(isoString?: string) {
   if (!isoString) return null;
-  try {
-    const date = new Date(isoString);
-    return date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-  } catch {
-    return null;
-  }
+
+  const date = new Date(isoString);
+
+  if (Number.isNaN(date.getTime())) return null;
+
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
+
+function formatEventType(type: string) {
+  if (!type) return "Community Event";
+
+  return type
+    .replaceAll("-", " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
 export default function JoinedEventsPage() {
   const router = useRouter();
   const { data: session, isPending, refetch } = useSession();
@@ -88,49 +124,74 @@ export default function JoinedEventsPage() {
   const [error, setError] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState<"all" | "upcoming" | "past">("all");
-
-  const apiUrl =
-    process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const [activeTab, setActiveTab] = useState<"all" | "upcoming" | "past">(
+    "all"
+  );
 
   const todayDate = useSyncExternalStore(
     emptySubscribe,
-    () => new Date().toISOString().split("T")[0],
+    getTodayString,
     () => ""
   );
 
+  // Redirect unauthenticated users.
   useEffect(() => {
-    if (!isPending && !session) {
-      if (refetch) {
-        refetch().catch(() => {});
+    if (isPending || session) return;
+
+    let active = true;
+
+    const redirectUser = async () => {
+      try {
+        await refetch?.();
+      } catch {
+        // Continue to login if session refresh fails.
       }
-      const timeout = setTimeout(() => {
-        if (!session) {
-          notify.error("Authentication Required", "Please sign in to view your joined events.");
-          router.push("/login?callbackUrl=/joined-events");
-        }
-      }, 400);
-      return () => clearTimeout(timeout);
-    }
+
+      if (active) {
+        notify.error(
+          "Authentication Required",
+          "Please sign in to view your joined events."
+        );
+
+        router.push("/login?callbackUrl=/joined-events");
+      }
+    };
+
+    redirectUser();
+
+    return () => {
+      active = false;
+    };
   }, [session, isPending, router, refetch]);
 
-  const fetchJoinedEvents = async () => {
+  // Fetch joined events.
+  const fetchJoinedEvents = useCallback(async () => {
     if (!session?.user?.email) return;
+
     setLoading(true);
     setError(null);
+
     try {
       const token = await getTokenFromClient();
+
       const res = await fetch(
-        `${apiUrl}/joined-events?email=${encodeURIComponent(session.user.email)}`,
+        `${API_URL}/joined-events?email=${encodeURIComponent(
+          session.user.email
+        )}`,
         {
           cache: "no-store",
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         }
       );
+
       if (!res.ok) {
-        throw new Error(`Failed to load joined events (Status: ${res.status})`);
+        throw new Error(
+          `Failed to load joined events (Status: ${res.status})`
+        );
       }
+
       const data = await res.json();
+
       if (data.success && Array.isArray(data.data)) {
         setJoinedEvents(data.data);
       } else {
@@ -138,74 +199,38 @@ export default function JoinedEventsPage() {
       }
     } catch (err: unknown) {
       setError(
-        err instanceof Error ? err.message : "Could not connect to the backend server."
+        err instanceof Error
+          ? err.message
+          : "Could not connect to the backend server."
       );
     } finally {
       setLoading(false);
     }
-  };
+  }, [session?.user?.email]);
 
   useEffect(() => {
-    let ignore = false;
-
-    async function load() {
-      if (!session?.user?.email) return;
-      setError(null);
-      try {
-        const token = await getTokenFromClient();
-        const res = await fetch(
-          `${apiUrl}/joined-events?email=${encodeURIComponent(session.user.email)}`,
-          {
-            cache: "no-store",
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-          }
-        );
-        if (!res.ok) {
-          throw new Error(`Failed to load joined events (Status: ${res.status})`);
-        }
-        const data = await res.json();
-        if (!ignore) {
-          if (data.success && Array.isArray(data.data)) {
-            setJoinedEvents(data.data);
-          } else {
-            setJoinedEvents([]);
-          }
-        }
-      } catch (err: unknown) {
-        if (!ignore) {
-          setError(
-            err instanceof Error ? err.message : "Could not connect to the backend server."
-          );
-        }
-      } finally {
-        if (!ignore) {
-          setLoading(false);
-        }
-      }
-    }
-
     if (session?.user?.email) {
-      load();
+      fetchJoinedEvents();
     }
+  }, [session?.user?.email, fetchJoinedEvents]);
 
-    return () => {
-      ignore = true;
-    };
-  }, [session, apiUrl]);
-
+  // Cancel event registration.
   const handleCancelAttendance = async (item: JoinedEventItem) => {
     if (!session?.user?.email) return;
 
     const confirmed = window.confirm(
       `Are you sure you want to cancel your registration for "${item.eventTitle}"?`
     );
+
     if (!confirmed) return;
 
     setCancellingId(item._id);
+
     try {
       const token = await getTokenFromClient();
+
       const res = await fetch(
-        `${apiUrl}/joined-events/${item._id}?email=${encodeURIComponent(
+        `${API_URL}/joined-events/${item._id}?email=${encodeURIComponent(
           session.user.email
         )}`,
         {
@@ -213,15 +238,21 @@ export default function JoinedEventsPage() {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         }
       );
-      const data = await res.json();
+
+      const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        notify.error("Cancellation Failed", data?.message || "Could not cancel attendance.");
-        setCancellingId(null);
+        notify.error(
+          "Cancellation Failed",
+          data?.message || "Could not cancel attendance."
+        );
         return;
       }
 
-      setJoinedEvents((prev) => prev.filter((ev) => ev._id !== item._id));
+      setJoinedEvents((prev) =>
+        prev.filter((event) => event._id !== item._id)
+      );
+
       notify.success(
         "Attendance Cancelled",
         `You have left "${item.eventTitle}".`
@@ -229,311 +260,486 @@ export default function JoinedEventsPage() {
     } catch (err: unknown) {
       notify.error(
         "Network Error",
-        err instanceof Error ? err.message : "Failed to cancel attendance."
+        err instanceof Error
+          ? err.message
+          : "Failed to cancel attendance."
       );
     } finally {
       setCancellingId(null);
     }
   };
 
+  // Filter events based on selected tab.
   const filteredEvents = useMemo(() => {
-    return joinedEvents.filter((ev) => {
+    return joinedEvents.filter((event) => {
       if (!todayDate) return true;
-      const isPast = ev.eventDate < todayDate;
+
+      const isPast = event.eventDate < todayDate;
+
       if (activeTab === "upcoming") return !isPast;
       if (activeTab === "past") return isPast;
+
       return true;
     });
   }, [joinedEvents, activeTab, todayDate]);
 
+  // Dashboard statistics.
   const stats = useMemo(() => {
     const total = joinedEvents.length;
+
     let upcoming = 0;
     let past = 0;
+
     if (todayDate) {
-      joinedEvents.forEach((ev) => {
-        if (ev.eventDate >= todayDate) upcoming++;
-        else past++;
+      joinedEvents.forEach((event) => {
+        if (event.eventDate >= todayDate) {
+          upcoming++;
+        } else {
+          past++;
+        }
       });
     } else {
       upcoming = total;
     }
+
     return { total, upcoming, past };
   }, [joinedEvents, todayDate]);
 
   if (isPending) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-emerald-700" />
+      <div className="flex min-h-[65vh] items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-100 dark:bg-emerald-950">
+            <Loader2 className="h-7 w-7 animate-spin text-emerald-700 dark:text-emerald-400" />
+          </div>
+          <p className="text-sm font-medium text-muted-foreground">
+            Loading your events...
+          </p>
+        </div>
       </div>
     );
   }
 
-  if (!session) {
-    return null;
-  }
+  if (!session) return null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-emerald-50/40 via-background to-background dark:from-emerald-950/15 dark:via-background dark:to-background pb-20">
-      <section className="border-b bg-background/80 backdrop-blur-md">
-        <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="min-h-screen bg-slate-50/70 pb-20 dark:bg-background">
+      {/* Hero Section */}
+      <section className="relative isolate overflow-hidden bg-[#073B2B] text-white">
+        <div className="absolute inset-0 -z-10 overflow-hidden">
+          <div className="absolute -right-24 -top-36 h-[420px] w-[420px] rounded-full border border-emerald-300/10" />
+          <div className="absolute -right-12 -top-24 h-[320px] w-[320px] rounded-full border border-emerald-300/10" />
+          <div className="absolute -bottom-48 left-[35%] h-[420px] w-[420px] rounded-full bg-emerald-400/10 blur-3xl" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(16,185,129,0.18),transparent_35%)]" />
+        </div>
+
+        <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
+          <div className="flex flex-col justify-between gap-10 lg:flex-row lg:items-center">
             <div className="max-w-2xl">
-              <div className="inline-flex items-center gap-2 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 mb-3">
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                Volunteer Hub
+              <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-white/10 px-3.5 py-1.5 text-xs font-semibold text-emerald-100 backdrop-blur-sm">
+                <HeartHandshake className="h-3.5 w-3.5" />
+                VOLUNTEER DASHBOARD
               </div>
-              <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">
-                My Joined Events
+
+              <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl lg:text-5xl">
+                Your Community
+                <span className="mt-1 block text-emerald-300">
+                  Journey Starts Here.
+                </span>
               </h1>
-              <p className="mt-1.5 text-sm sm:text-base text-muted-foreground">
-                All community events you have registered to attend, sorted chronologically by date.
+
+              <p className="mt-4 max-w-xl text-sm leading-7 text-emerald-50/75 sm:text-base">
+                Keep track of the causes you support, manage your
+                registrations, and stay connected with the community.
+                Every little contribution makes a difference.
               </p>
+
+              <div className="mt-7 flex flex-wrap items-center gap-3">
+                <Link href="/upcoming-events">
+                  <Button className="h-11 gap-2 rounded-xl bg-emerald-400 px-5 font-semibold text-emerald-950 shadow-lg shadow-emerald-950/20 hover:bg-emerald-300">
+                    <Sparkles className="h-4 w-4" />
+                    Discover Events
+                    <ArrowUpRight className="h-4 w-4" />
+                  </Button>
+                </Link>
+
+                <Link href="/">
+                  <Button
+                    variant="outline"
+                    className="h-11 rounded-xl border-white/20 bg-white/5 px-5 text-white hover:bg-white/10 hover:text-white"
+                  >
+                    Back to Home
+                  </Button>
+                </Link>
+              </div>
             </div>
 
-            <div className="flex items-center gap-3">
-              <Link href="/upcoming-events">
-                <Button className="bg-emerald-700 hover:bg-emerald-800 text-white font-medium gap-2 shadow-sm text-xs sm:text-sm">
-                  <Sparkles className="h-4 w-4" />
-                  Explore More Events
-                </Button>
-              </Link>
-            </div>
-          </div>
+            {/* Hero Statistics */}
+            <div className="grid w-full max-w-xl grid-cols-3 gap-2 sm:gap-3">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.08] p-3 backdrop-blur-md sm:p-5">
+                <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-400/15 text-emerald-300">
+                  <TicketCheck className="h-4 w-4" />
+                </div>
+                <p className="text-[10px] font-medium text-emerald-100/70 sm:text-xs">
+                  Total Joined
+                </p>
+                <p className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">
+                  {stats.total}
+                </p>
+              </div>
 
-          <div className="mt-8 grid grid-cols-3 gap-3 sm:gap-4 max-w-2xl">
-            <div className="rounded-xl border border-border/70 bg-card p-3 sm:p-4 text-center">
-              <p className="text-xs text-muted-foreground font-medium">Total Joined</p>
-              <p className="text-xl sm:text-2xl font-extrabold text-foreground mt-1">
-                {stats.total}
-              </p>
-            </div>
-            <div className="rounded-xl border border-emerald-700/20 bg-emerald-50/50 dark:bg-emerald-950/30 p-3 sm:p-4 text-center">
-              <p className="text-xs text-emerald-800 dark:text-emerald-300 font-medium">
-                Upcoming
-              </p>
-              <p className="text-xl sm:text-2xl font-extrabold text-emerald-700 dark:text-emerald-400 mt-1">
-                {stats.upcoming}
-              </p>
-            </div>
-            <div className="rounded-xl border border-border/70 bg-card p-3 sm:p-4 text-center">
-              <p className="text-xs text-muted-foreground font-medium">Completed</p>
-              <p className="text-xl sm:text-2xl font-extrabold text-foreground mt-1">
-                {stats.past}
-              </p>
-            </div>
-          </div>
+              <div className="rounded-2xl border border-white/10 bg-white/[0.08] p-3 backdrop-blur-md sm:p-5">
+                <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-400/15 text-emerald-300">
+                  <CalendarClock className="h-4 w-4" />
+                </div>
+                <p className="text-[10px] font-medium text-emerald-100/70 sm:text-xs">
+                  Upcoming
+                </p>
+                <p className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">
+                  {stats.upcoming}
+                </p>
+              </div>
 
-          <div className="mt-8 flex items-center gap-2 border-t border-border/60 pt-4">
-            <button
-              type="button"
-              onClick={() => setActiveTab("all")}
-              className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
-                activeTab === "all"
-                  ? "bg-emerald-700 text-white shadow-xs"
-                  : "text-muted-foreground hover:bg-muted"
-              }`}
-            >
-              All Events ({stats.total})
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab("upcoming")}
-              className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
-                activeTab === "upcoming"
-                  ? "bg-emerald-700 text-white shadow-xs"
-                  : "text-muted-foreground hover:bg-muted"
-              }`}
-            >
-              Upcoming ({stats.upcoming})
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab("past")}
-              className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
-                activeTab === "past"
-                  ? "bg-emerald-700 text-white shadow-xs"
-                  : "text-muted-foreground hover:bg-muted"
-              }`}
-            >
-              Past ({stats.past})
-            </button>
+              <div className="rounded-2xl border border-white/10 bg-white/[0.08] p-3 backdrop-blur-md sm:p-5">
+                <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-400/15 text-emerald-300">
+                  <CheckCircle2 className="h-4 w-4" />
+                </div>
+                <p className="text-[10px] font-medium text-emerald-100/70 sm:text-xs">
+                  Completed
+                </p>
+                <p className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">
+                  {stats.past}
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
+      {/* Main Content */}
       <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+        {/* Section Heading */}
+        <div className="mb-7 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700 dark:text-emerald-400">
+              <Sparkles className="h-3.5 w-3.5" />
+              Your participation
+            </div>
+
+            <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
+              My Joined Events
+            </h2>
+
+            <p className="mt-1 text-sm text-muted-foreground">
+              All the community initiatives you have signed up for.
+            </p>
+          </div>
+        </div>
+
+        {/* Filter Tabs */}
+        <div className="mb-8 flex flex-wrap items-center gap-2 rounded-2xl border border-border/60 bg-card p-2 shadow-sm">
+          <button
+            type="button"
+            onClick={() => setActiveTab("all")}
+            className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-semibold transition-all sm:text-sm ${activeTab === "all"
+                ? "bg-emerald-700 text-white shadow-sm"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              }`}
+          >
+            <TicketCheck className="h-4 w-4" />
+            All Events
+            <span
+              className={`rounded-md px-1.5 py-0.5 text-[10px] ${activeTab === "all"
+                  ? "bg-white/15 text-white"
+                  : "bg-muted text-muted-foreground"
+                }`}
+            >
+              {stats.total}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("upcoming")}
+            className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-semibold transition-all sm:text-sm ${activeTab === "upcoming"
+                ? "bg-emerald-700 text-white shadow-sm"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              }`}
+          >
+            <CalendarClock className="h-4 w-4" />
+            Upcoming
+            <span
+              className={`rounded-md px-1.5 py-0.5 text-[10px] ${activeTab === "upcoming"
+                  ? "bg-white/15 text-white"
+                  : "bg-muted text-muted-foreground"
+                }`}
+            >
+              {stats.upcoming}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("past")}
+            className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-semibold transition-all sm:text-sm ${activeTab === "past"
+                ? "bg-emerald-700 text-white shadow-sm"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              }`}
+          >
+            <CheckCircle2 className="h-4 w-4" />
+            Completed
+            <span
+              className={`rounded-md px-1.5 py-0.5 text-[10px] ${activeTab === "past"
+                  ? "bg-white/15 text-white"
+                  : "bg-muted text-muted-foreground"
+                }`}
+            >
+              {stats.past}
+            </span>
+          </button>
+        </div>
+
+        {/* Error State */}
         {error && (
-          <div className="mb-8 rounded-xl border border-destructive/30 bg-destructive/10 p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <AlertCircle className="h-5 w-5 text-destructive shrink-0" />
+          <div className="mb-8 flex flex-col justify-between gap-4 rounded-2xl border border-red-200 bg-red-50 p-5 dark:border-red-900/50 dark:bg-red-950/20 sm:flex-row sm:items-center">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300">
+                <AlertCircle className="h-5 w-5" />
+              </div>
+
               <div>
-                <p className="text-sm font-semibold text-destructive">
+                <p className="font-semibold text-red-700 dark:text-red-300">
                   Could not load your joined events
                 </p>
-                <p className="text-xs text-muted-foreground mt-0.5">{error}</p>
+                <p className="mt-1 text-sm text-red-700/70 dark:text-red-300/70">
+                  {error}
+                </p>
               </div>
             </div>
+
             <Button
               variant="outline"
               size="sm"
               onClick={fetchJoinedEvents}
-              className="gap-2 border-destructive/40 text-destructive hover:bg-destructive/10 shrink-0"
+              disabled={loading}
+              className="shrink-0 gap-2 border-red-300 bg-white text-red-700 hover:bg-red-100 dark:border-red-900 dark:bg-transparent dark:text-red-300"
             >
               <RefreshCw className="h-3.5 w-3.5" />
-              Retry
+              Try Again
             </Button>
           </div>
         )}
 
+        {/* Loading Skeletons */}
         {loading && (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 3 }).map((_, idx) => (
-              <Card key={idx} className="overflow-hidden border border-border/60">
-                <Skeleton className="h-44 w-full rounded-none" />
-                <CardHeader className="space-y-2 pb-2">
-                  <Skeleton className="h-4 w-28 rounded-full" />
-                  <Skeleton className="h-6 w-3/4 rounded" />
+            {Array.from({ length: 3 }).map((_, index) => (
+              <Card
+                key={index}
+                className="overflow-hidden rounded-2xl border-border/60"
+              >
+                <Skeleton className="h-52 w-full rounded-none" />
+
+                <CardHeader className="space-y-3 p-5">
+                  <Skeleton className="h-4 w-28" />
+                  <Skeleton className="h-6 w-4/5" />
                 </CardHeader>
-                <CardContent className="space-y-2 pb-4">
+
+                <CardContent className="space-y-3 px-5 pb-5">
                   <Skeleton className="h-4 w-full" />
-                  <Skeleton className="h-4 w-1/2" />
+                  <Skeleton className="h-4 w-2/3" />
+                  <Skeleton className="h-9 w-full rounded-xl" />
                 </CardContent>
-                <CardFooter className="pt-2">
-                  <Skeleton className="h-9 w-full rounded-md" />
-                </CardFooter>
               </Card>
             ))}
           </div>
         )}
+
+        {/* Empty State */}
         {!loading && !error && filteredEvents.length === 0 && (
-          <div className="flex min-h-[40vh] flex-col items-center justify-center rounded-2xl border border-dashed border-border/80 bg-muted/20 px-6 py-16 text-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 mb-4">
-              <CalendarCheck2 className="h-8 w-8" />
+          <div className="relative overflow-hidden rounded-3xl border border-dashed border-emerald-300/60 bg-white px-5 py-16 text-center shadow-sm dark:border-emerald-900/60 dark:bg-card sm:px-10">
+            <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-emerald-100/70 blur-3xl dark:bg-emerald-950/40" />
+            <div className="absolute -bottom-20 -left-16 h-48 w-48 rounded-full bg-emerald-100/70 blur-3xl dark:bg-emerald-950/40" />
+
+            <div className="relative mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+              {activeTab === "past" ? (
+                <CheckCircle2 className="h-10 w-10" />
+              ) : (
+                <HeartHandshake className="h-10 w-10" />
+              )}
             </div>
-            <h3 className="text-lg font-bold tracking-tight">No Events Found</h3>
-            <p className="mt-1.5 max-w-sm text-sm text-muted-foreground">
-              {activeTab === "upcoming"
-                ? "You do not have any upcoming joined events scheduled."
-                : activeTab === "past"
-                ? "No completed events yet."
-                : "You haven't joined any social development events yet. Discover causes in your community and sign up to participate!"}
-            </p>
-            <div className="mt-6 flex gap-3">
-              <Link href="/upcoming-events">
-                <Button className="bg-emerald-700 hover:bg-emerald-800 text-white gap-2 text-xs">
+
+            <div className="relative mt-6">
+              <Badge className="border-0 bg-emerald-100 text-emerald-800 hover:bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-300">
+                {activeTab === "past"
+                  ? "Your completed activities"
+                  : "Your journey starts here"}
+              </Badge>
+
+              <h3 className="mt-4 text-xl font-bold tracking-tight sm:text-2xl">
+                {activeTab === "upcoming"
+                  ? "No Upcoming Events"
+                  : activeTab === "past"
+                    ? "No Completed Events Yet"
+                    : "You Haven't Joined Any Events"}
+              </h3>
+
+              <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">
+                {activeTab === "upcoming"
+                  ? "You don't have any upcoming events. Discover new opportunities and get involved in your community."
+                  : activeTab === "past"
+                    ? "Your completed event history will appear here after you participate in community initiatives."
+                    : "Find meaningful community initiatives, connect with volunteers, and become part of something positive."}
+              </p>
+
+              <Link href="/upcoming-events" className="mt-7 inline-flex">
+                <Button className="h-11 gap-2 rounded-xl bg-emerald-700 px-5 text-white hover:bg-emerald-800">
                   <Sparkles className="h-4 w-4" />
-                  Browse Upcoming Events
+                  Explore Upcoming Events
+                  <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
             </div>
           </div>
         )}
 
+        {/* Joined Event Cards */}
         {!loading && !error && filteredEvents.length > 0 && (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {filteredEvents.map((item) => {
-              const isPast = Boolean(todayDate && item.eventDate < todayDate);
+              const isPast = Boolean(
+                todayDate && item.eventDate < todayDate
+              );
+
               const isCancelling = cancellingId === item._id;
 
               return (
                 <Card
                   key={item._id}
-                  className={`group flex flex-col overflow-hidden border transition-all duration-300 hover:shadow-md ${
-                    isPast
-                      ? "border-border/50 bg-muted/20 opacity-80"
-                      : "border-border/70 hover:border-emerald-700/40"
-                  }`}
+                  className={`group flex flex-col overflow-hidden rounded-2xl border bg-card py-0 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-emerald-950/5 ${isPast
+                      ? "border-border/60"
+                      : "border-border/70 hover:border-emerald-600/40"
+                    }`}
                 >
-                  <div className="relative h-44 w-full overflow-hidden bg-muted">
+                  {/* Event Image */}
+                  <div className="relative h-52 overflow-hidden bg-muted">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={item.thumbnailURL || DEFAULT_EVENT_IMAGE}
                       alt={item.eventTitle}
                       referrerPolicy="no-referrer"
-                      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      className={`h-full w-full object-cover transition-transform duration-700 group-hover:scale-110 ${isPast ? "grayscale-[25%]" : ""
+                        }`}
                       onError={(e) => {
-                        (e.currentTarget as HTMLImageElement).src = DEFAULT_EVENT_IMAGE;
+                        const image = e.currentTarget;
+
+                        if (!image.src.includes("photo-1559027615")) {
+                          image.src = DEFAULT_EVENT_IMAGE;
+                        }
                       }}
                     />
 
-                    <div className="absolute top-3 left-3">
-                      <Badge className="bg-background/90 text-foreground backdrop-blur-md border border-border/40 font-semibold capitalize text-[11px] shadow-sm">
-                        <Tag className="h-3 w-3 mr-1 text-emerald-700" />
-                        {item.eventType}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/5 to-black/20" />
+
+                    {/* Event Category */}
+                    <div className="absolute left-4 top-4">
+                      <Badge className="border border-white/30 bg-white/90 text-xs font-semibold text-slate-800 shadow-sm backdrop-blur-md hover:bg-white/90">
+                        <Tag className="mr-1.5 h-3 w-3 text-emerald-700" />
+                        {formatEventType(item.eventType)}
                       </Badge>
                     </div>
 
-                    <div className="absolute top-3 right-3">
-                      {isPast ? (
-                        <Badge
-                          variant="secondary"
-                          className="bg-muted text-muted-foreground text-[10px] gap-1"
-                        >
-                          <Clock className="h-3 w-3" />
-                          Completed
-                        </Badge>
-                      ) : (
-                        <Badge className="bg-emerald-700 text-white text-[10px] gap-1 shadow-sm">
-                          <CheckCircle2 className="h-3 w-3" />
-                          Attending
-                        </Badge>
-                      )}
+                    {/* Event Status */}
+                    <div className="absolute right-4 top-4">
+                      <Badge
+                        className={
+                          isPast
+                            ? "border border-white/20 bg-slate-800/80 text-white shadow-sm backdrop-blur-md hover:bg-slate-800/80"
+                            : "border border-emerald-300/30 bg-emerald-500/90 text-white shadow-sm backdrop-blur-md hover:bg-emerald-500/90"
+                        }
+                      >
+                        {isPast ? (
+                          <Clock className="mr-1 h-3 w-3" />
+                        ) : (
+                          <CheckCircle2 className="mr-1 h-3 w-3" />
+                        )}
+                        {isPast ? "Completed" : "Attending"}
+                      </Badge>
+                    </div>
+
+                    {/* Event Date */}
+                    <div className="absolute bottom-4 left-4 right-4 text-white">
+                      <p className="text-[11px] font-medium uppercase tracking-wider text-white/70">
+                        Event date
+                      </p>
+
+                      <p className="mt-1 flex items-center gap-1.5 text-sm font-semibold">
+                        <CalendarDays className="h-4 w-4 shrink-0" />
+                        <span>{formatEventDate(item.eventDate)}</span>
+                      </p>
                     </div>
                   </div>
 
-                  <CardHeader className="pb-2">
-                    <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
-                      <CalendarDays className="h-3.5 w-3.5 shrink-0" />
-                      <span>{formatEventDate(item.eventDate)}</span>
+                  {/* Event Information */}
+                  <CardHeader className="space-y-2 px-5 pb-2 pt-5">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      Registration Confirmed
                     </div>
 
-                    <CardTitle className="text-base font-bold line-clamp-1 group-hover:text-emerald-700 transition-colors">
+                    <CardTitle className="line-clamp-1 text-lg font-bold tracking-tight transition-colors group-hover:text-emerald-700 dark:group-hover:text-emerald-400">
                       {item.eventTitle}
                     </CardTitle>
                   </CardHeader>
 
-                  <CardContent className="space-y-2.5 flex-1 pb-4">
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <MapPin className="h-3.5 w-3.5 shrink-0 text-emerald-700" />
+                  <CardContent className="flex flex-1 flex-col px-5 pb-4">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <MapPin className="h-4 w-4 shrink-0 text-emerald-700 dark:text-emerald-400" />
                       <span className="truncate">{item.location}</span>
                     </div>
 
                     {item.joinedAt && (
-                      <p className="text-[11px] text-muted-foreground/80 pt-1 border-t border-border/40">
-                        Registered on {formatJoinedDate(item.joinedAt)}
-                      </p>
+                      <div className="mt-4 flex items-center justify-between border-t border-border/60 pt-3 text-xs">
+                        <span className="text-muted-foreground">
+                          Registered on
+                        </span>
+
+                        <span className="font-medium text-foreground">
+                          {formatJoinedDate(item.joinedAt)}
+                        </span>
+                      </div>
                     )}
                   </CardContent>
 
-                  <CardFooter className="flex items-center gap-2 pt-0">
+                  {/* Card Actions */}
+                  <CardFooter className="flex items-center gap-2.5 border-t border-border/60 bg-muted/20 p-4">
                     <Link
                       href={`/events/${item.eventId}`}
-                      className="flex-1"
+                      className="min-w-0 flex-1"
                     >
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full justify-between text-xs font-medium group-hover:bg-emerald-700 group-hover:text-white group-hover:border-emerald-700 transition-all"
-                      >
+                      <Button className="group/btn h-11 w-full justify-between rounded-xl bg-gradient-to-r from-emerald-700 to-emerald-600 px-4 text-sm font-semibold text-white shadow-md shadow-emerald-900/10 transition-all duration-300 hover:-translate-y-0.5 hover:from-emerald-800 hover:to-emerald-700 hover:shadow-lg hover:shadow-emerald-900/20">
                         <span>View Details</span>
-                        <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
+
+                        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/15 transition-all duration-300 group-hover/btn:translate-x-1 group-hover/btn:bg-white/25">
+                          <ArrowRight className="h-4 w-4" />
+                        </span>
                       </Button>
                     </Link>
 
                     {!isPast && (
                       <Button
-                        variant="ghost"
+                        variant="outline"
                         size="icon"
                         title="Cancel Attendance"
+                        aria-label={`Cancel registration for ${item.eventTitle}`}
                         disabled={isCancelling}
                         onClick={() => handleCancelAttendance(item)}
-                        className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0"
+                        className="h-11 w-11 shrink-0 rounded-xl border-red-200 bg-background text-red-600 transition-all duration-200 hover:border-red-300 hover:bg-red-50 hover:text-red-700 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-950/30"
                       >
                         {isCancelling ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          <Loader2 className="h-4 w-4 animate-spin" />
                         ) : (
-                          <Trash2 className="h-3.5 w-3.5" />
+                          <Trash2 className="h-4 w-4" />
                         )}
                       </Button>
                     )}

@@ -1,7 +1,6 @@
-
 "use client";
 
-import { useEffect, useState, useMemo, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -15,9 +14,14 @@ import {
   Loader2,
   AlertCircle,
   FolderKanban,
-  ExternalLink,
   RefreshCw,
   Check,
+  HeartHandshake,
+  CalendarCheck,
+  Clock3,
+  Image as ImageIcon,
+  Sparkles,
+  ArrowUpRight,
 } from "lucide-react";
 
 import { useSession } from "@/lib/auth-client";
@@ -57,10 +61,10 @@ interface MyEventItem {
   _id: string;
   title: string;
   description: string;
-  eventType: string;
+  eventType: string | null;
   thumbnailURL: string | null;
   location: string;
-  eventDate: string;
+  eventDate: string | null;
   creatorEmail: string;
   creatorName?: string | null;
   joinedCount?: number;
@@ -92,45 +96,99 @@ const EVENT_TYPES = [
 const DEFAULT_EVENT_IMAGE =
   "https://images.unsplash.com/photo-1559027615-cd4628902d4a?auto=format&fit=crop&w=800&q=80";
 
-const emptySubscribe = () => () => { };
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-function getTomorrowString() {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
+function getTomorrowString(): string {
+  const date = new Date();
+  date.setDate(date.getDate() + 1);
 
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
 
-  return `${yyyy}-${mm}-${dd}`;
+  return `${year}-${month}-${day}`;
 }
 
-function formatEventDate(dateString: string) {
-  try {
-    const [year, month, day] = dateString.split("-").map(Number);
-    const date = new Date(year, month - 1, day);
+// Safely parse a "YYYY-MM-DD" string (nullable) into a local Date.
+function parseEventDate(dateString: string | null | undefined): Date | null {
+  if (!dateString) return null;
 
-    return date.toLocaleDateString("en-US", {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-  } catch {
-    return dateString;
-  }
+  const [year, month, day] = dateString.split("-").map(Number);
+
+  if (!year || !month || !day) return null;
+
+  const date = new Date(year, month - 1, day);
+
+  if (Number.isNaN(date.getTime())) return null;
+
+  return date;
+}
+
+// Safely format nullable event dates.
+function formatEventDate(dateString: string | null | undefined): string {
+  if (!dateString) return "Date not available";
+
+  const date = parseEventDate(dateString);
+
+  if (!date) return dateString;
+
+  return date.toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+// Safely handle nullable event types.
+function getEventTypeLabel(type: string | null | undefined): string {
+  if (!type) return "Community Event";
+
+  const normalizedType: string = type;
+
+  return (
+    EVENT_TYPES.find((eventType) => eventType.value === normalizedType)
+      ?.label || normalizedType.replaceAll("-", " ")
+  );
+}
+
+// Safely determine whether an event is upcoming.
+function isUpcomingEvent(dateString: string | null | undefined): boolean {
+  const eventDate = parseEventDate(dateString);
+
+  if (!eventDate) return false;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  return eventDate >= today;
+}
+
+// Build auth headers; the token can be null, so never pass it to a string-only API directly.
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  const token = await getTokenFromClient();
+
+  return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
 export default function ManageEventsPage() {
   const router = useRouter();
   const { data: session, isPending, refetch } = useSession();
 
+  // Normalize the (possibly nullable/undefined) email once.
+  const userEmail: string | null = session?.user?.email ?? null;
+
   const [myEvents, setMyEvents] = useState<MyEventItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
   const [editingEvent, setEditingEvent] = useState<MyEventItem | null>(null);
+
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  const [minDate, setMinDate] = useState("");
+  const [thumbnailPreviewError, setThumbnailPreviewError] = useState(false);
 
   const [editForm, setEditForm] = useState<EditFormState>({
     title: "",
@@ -141,64 +199,67 @@ export default function ManageEventsPage() {
     eventDate: "",
   });
 
-  const [isUpdating, setIsUpdating] = useState(false);
-
-  const apiUrl =
-    process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
-  const minDate = useSyncExternalStore(
-    emptySubscribe,
-    getTomorrowString,
-    () => ""
-  );
-
+  // Set the minimum date after hydration.
   useEffect(() => {
-    if (!isPending && !session) {
-      if (refetch) {
-        refetch().catch(() => { });
+    setMinDate(getTomorrowString());
+  }, []);
+
+  // Redirect unauthenticated users.
+  useEffect(() => {
+    if (isPending || session) return;
+
+    let active = true;
+
+    const redirectUser = async () => {
+      try {
+        await refetch?.();
+      } catch {
+        // Continue to login if session refresh fails.
       }
 
-      const timeout = setTimeout(() => {
-        if (!session) {
-          notify.error(
-            "Authentication Required",
-            "Please sign in to manage your events."
-          );
-          router.push("/login?callbackUrl=/manage-events");
-        }
-      }, 400);
+      if (active) {
+        notify.error(
+          "Authentication Required",
+          "Please sign in to manage your events."
+        );
 
-      return () => clearTimeout(timeout);
-    }
+        router.push("/login?callbackUrl=/manage-events");
+      }
+    };
+
+    redirectUser();
+
+    return () => {
+      active = false;
+    };
   }, [session, isPending, router, refetch]);
 
-  const fetchMyEvents = async () => {
-    if (!session?.user?.email) return;
+  // Fetch the current user's events.
+  const fetchMyEvents = useCallback(async () => {
+    if (!userEmail) return;
 
     setLoading(true);
     setError(null);
 
     try {
-      const token = await getTokenFromClient();
+      const headers = await getAuthHeaders();
 
       const res = await fetch(
-        `${apiUrl}/my-events?email=${encodeURIComponent(session.user.email)}`,
+        `${API_URL}/my-events?email=${encodeURIComponent(userEmail)}`,
         {
           cache: "no-store",
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          headers,
         }
       );
 
       if (!res.ok) {
-        throw new Error(
-          `Failed to load your events (Status: ${res.status})`
-        );
+        throw new Error(`Failed to load your events (Status: ${res.status})`);
       }
 
       const data = await res.json();
 
       if (data.success && Array.isArray(data.data)) {
-        setMyEvents(data.data);
+        setMyEvents(data.data as MyEventItem[]);
       } else {
         setMyEvents([]);
       }
@@ -211,80 +272,38 @@ export default function ManageEventsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [userEmail]);
 
   useEffect(() => {
-    let ignore = false;
-
-    async function load() {
-      if (!session?.user?.email) return;
-
-      setError(null);
-
-      try {
-        const token = await getTokenFromClient();
-
-        const res = await fetch(
-          `${apiUrl}/my-events?email=${encodeURIComponent(session.user.email)}`,
-          {
-            cache: "no-store",
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-          }
-        );
-
-        if (!res.ok) {
-          throw new Error(
-            `Failed to load your events (Status: ${res.status})`
-          );
-        }
-
-        const data = await res.json();
-
-        if (!ignore) {
-          if (data.success && Array.isArray(data.data)) {
-            setMyEvents(data.data);
-          } else {
-            setMyEvents([]);
-          }
-        }
-      } catch (err: unknown) {
-        if (!ignore) {
-          setError(
-            err instanceof Error
-              ? err.message
-              : "Could not connect to the backend server."
-          );
-        }
-      } finally {
-        if (!ignore) {
-          setLoading(false);
-        }
-      }
+    if (userEmail) {
+      fetchMyEvents();
     }
+  }, [userEmail, fetchMyEvents]);
 
-    if (session?.user?.email) {
-      load();
-    }
-
-    return () => {
-      ignore = true;
-    };
-  }, [session, apiUrl]);
-
+  // Open the edit dialog.
   const handleOpenEdit = (event: MyEventItem) => {
     setEditingEvent(event);
+    setThumbnailPreviewError(false);
 
     setEditForm({
-      title: event.title,
-      description: event.description,
-      eventType: event.eventType,
-      thumbnailURL: event.thumbnailURL || "",
-      location: event.location,
-      eventDate: event.eventDate,
+      title: event.title ?? "",
+      description: event.description ?? "",
+      eventType: event.eventType ?? "",
+      thumbnailURL: event.thumbnailURL ?? "",
+      location: event.location ?? "",
+      eventDate: event.eventDate ?? "",
     });
   };
 
-  // Validate all update form fields.
+  // Close the edit dialog.
+  const handleCloseEdit = () => {
+    if (isUpdating) return;
+
+    setEditingEvent(null);
+    setThumbnailPreviewError(false);
+  };
+
+  // Validate the update form.
   const validateUpdateForm = (): string | null => {
     if (!editForm.title.trim()) {
       return "Title is required.";
@@ -314,21 +333,19 @@ export default function ManageEventsPage() {
       return "Event date is required.";
     }
 
-    const selected = new Date(editForm.eventDate);
+    const selected = new Date(`${editForm.eventDate}T00:00:00`);
     const today = new Date();
 
     today.setHours(0, 0, 0, 0);
 
-    if (selected <= today) {
+    if (Number.isNaN(selected.getTime()) || selected <= today) {
       return "Event date must be in the future.";
     }
 
-    // Thumbnail URL is now required.
     if (!editForm.thumbnailURL.trim()) {
       return "Thumbnail image URL is required.";
     }
 
-    // Validate thumbnail URL and protocol.
     try {
       const url = new URL(editForm.thumbnailURL.trim());
 
@@ -342,10 +359,11 @@ export default function ManageEventsPage() {
     return null;
   };
 
-  const handleUpdateEvent = async (e: React.FormEvent) => {
+  // Update event.
+  const handleUpdateEvent = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    if (!editingEvent || !session?.user?.email) return;
+    if (!editingEvent || !userEmail) return;
 
     const validationError = validateUpdateForm();
 
@@ -360,49 +378,43 @@ export default function ManageEventsPage() {
       title: editForm.title.trim(),
       description: editForm.description.trim(),
       eventType: editForm.eventType,
-      // Always send the required thumbnail URL.
       thumbnailURL: editForm.thumbnailURL.trim(),
       location: editForm.location.trim(),
       eventDate: editForm.eventDate,
-      creatorEmail: session.user.email,
+      creatorEmail: userEmail,
     };
 
-    try {
-      const token = await getTokenFromClient();
+    const eventId = editingEvent._id;
 
-      const res = await fetch(`${apiUrl}/events/${editingEvent._id}`, {
+    try {
+      const authHeaders = await getAuthHeaders();
+
+      const res = await fetch(`${API_URL}/events/${eventId}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...authHeaders,
         },
         body: JSON.stringify(payload),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
         notify.error(
           "Update Failed",
           data?.message || "Could not update event."
         );
-
-        setIsUpdating(false);
         return;
       }
 
       setMyEvents((prev) =>
-        prev.map((ev) =>
-          ev._id === editingEvent._id
-            ? { ...ev, ...payload, updatedAt: new Date().toISOString() }
-            : ev
+        prev.map((event) =>
+          event._id === eventId ? { ...event, ...payload } : event
         )
       );
 
-      notify.success(
-        "Event Updated",
-        `"${payload.title}" has been updated.`
-      );
+      notify.success("Event Updated", `"${payload.title}" has been updated.`);
 
       setEditingEvent(null);
     } catch (err: unknown) {
@@ -415,8 +427,9 @@ export default function ManageEventsPage() {
     }
   };
 
+  // Delete event.
   const handleDeleteEvent = async (event: MyEventItem) => {
-    if (!session?.user?.email) return;
+    if (!userEmail) return;
 
     const confirmed = window.confirm(
       `Are you sure you want to delete "${event.title}"?\n\nThis will permanently remove the event and all participant registrations. This action cannot be undone.`
@@ -425,137 +438,211 @@ export default function ManageEventsPage() {
     if (!confirmed) return;
 
     setDeletingId(event._id);
-    setIsDeleting(true);
 
     try {
-      const token = await getTokenFromClient();
+      const headers = await getAuthHeaders();
 
       const res = await fetch(
-        `${apiUrl}/events/${event._id}?email=${encodeURIComponent(
-          session.user.email
-        )}`,
+        `${API_URL}/events/${event._id}?email=${encodeURIComponent(userEmail)}`,
         {
           method: "DELETE",
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          headers,
         }
       );
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
         notify.error(
           "Delete Failed",
           data?.message || "Could not delete event."
         );
-
-        setIsDeleting(false);
-        setDeletingId(null);
         return;
       }
 
-      setMyEvents((prev) =>
-        prev.filter((ev) => ev._id !== event._id)
-      );
+      setMyEvents((prev) => prev.filter((item) => item._id !== event._id));
 
-      notify.success(
-        "Event Deleted",
-        `"${event.title}" has been deleted.`
-      );
+      notify.success("Event Deleted", `"${event.title}" has been deleted.`);
     } catch (err: unknown) {
       notify.error(
         "Network Error",
         err instanceof Error ? err.message : "Failed to delete event."
       );
     } finally {
-      setIsDeleting(false);
       setDeletingId(null);
     }
   };
 
+  // Dashboard statistics.
   const stats = useMemo(() => {
     const total = myEvents.length;
-    let totalVolunteers = 0;
 
-    myEvents.forEach((ev) => {
-      totalVolunteers += ev.joinedCount || 0;
-    });
+    const totalVolunteers = myEvents.reduce(
+      (sum, event) => sum + (event.joinedCount ?? 0),
+      0
+    );
 
-    return { total, totalVolunteers };
+    const upcoming = myEvents.filter((event) =>
+      isUpcomingEvent(event.eventDate)
+    ).length;
+
+    return { total, totalVolunteers, upcoming };
   }, [myEvents]);
+
+  const updateField = (field: keyof EditFormState, value: string) => {
+    setEditForm((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+
+    if (field === "thumbnailURL") {
+      setThumbnailPreviewError(false);
+    }
+  };
 
   if (isPending) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-emerald-700" />
+      <div className="flex min-h-[65vh] items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-100 dark:bg-emerald-950">
+            <Loader2 className="h-7 w-7 animate-spin text-emerald-700 dark:text-emerald-400" />
+          </div>
+          <p className="text-sm font-medium text-muted-foreground">
+            Loading your dashboard...
+          </p>
+        </div>
       </div>
     );
   }
 
-  if (!session) {
-    return null;
-  }
+  if (!session) return null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-emerald-50/40 via-background to-background dark:from-emerald-950/15 dark:via-background dark:to-background pb-20">
-      <section className="border-b bg-background/80 backdrop-blur-md">
-        <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="min-h-screen bg-slate-50/70 pb-20 dark:bg-background">
+      {/* Dashboard Hero */}
+      <section className="relative isolate overflow-hidden bg-[#073B2B] text-white">
+        <div className="absolute inset-0 -z-10 overflow-hidden">
+          <div className="absolute -right-24 -top-36 h-[420px] w-[420px] rounded-full border border-emerald-300/10" />
+          <div className="absolute -right-12 -top-24 h-[320px] w-[320px] rounded-full border border-emerald-300/10" />
+          <div className="absolute -bottom-48 left-[35%] h-[420px] w-[420px] rounded-full bg-emerald-400/10 blur-3xl" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(16,185,129,0.18),transparent_35%)]" />
+        </div>
+
+        <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
+          <div className="flex flex-col justify-between gap-8 lg:flex-row lg:items-center">
             <div className="max-w-2xl">
-              <div className="inline-flex items-center gap-2 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 mb-3">
+              <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-white/10 px-3.5 py-1.5 text-xs font-semibold text-emerald-100 backdrop-blur-sm">
                 <FolderKanban className="h-3.5 w-3.5" />
-                Organiser Dashboard
+                ORGANIZER DASHBOARD
               </div>
 
-              <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">
-                Manage My Events
+              <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl lg:text-5xl">
+                Manage Your
+                <span className="mt-1 block text-emerald-300">
+                  Community Events.
+                </span>
               </h1>
 
-              <p className="mt-1.5 text-sm sm:text-base text-muted-foreground">
-                Review, update, or remove social events you have organized in your community.
+              <p className="mt-4 max-w-xl text-sm leading-7 text-emerald-50/75 sm:text-base">
+                Keep your initiatives organized, connect with volunteers, and
+                make every community event count. Your next positive impact
+                starts here.
               </p>
+
+              <div className="mt-7 flex flex-wrap items-center gap-3">
+                <Link href="/create-event">
+                  <Button className="h-11 gap-2 rounded-xl bg-emerald-400 px-5 font-semibold text-emerald-950 shadow-lg shadow-emerald-950/20 hover:bg-emerald-300">
+                    <PlusCircle className="h-4 w-4" />
+                    Create New Event
+                    <ArrowUpRight className="h-4 w-4" />
+                  </Button>
+                </Link>
+
+                <Link href="/upcoming-events">
+                  <Button
+                    variant="outline"
+                    className="h-11 rounded-xl border-white/20 bg-white/5 px-5 text-white hover:bg-white/10 hover:text-white"
+                  >
+                    Explore Events
+                  </Button>
+                </Link>
+              </div>
             </div>
 
-            <Link href="/create-event">
-              <Button className="bg-emerald-700 hover:bg-emerald-800 text-white font-medium gap-2 shadow-sm text-xs sm:text-sm shrink-0">
-                <PlusCircle className="h-4 w-4" />
-                Create Another Event
-              </Button>
-            </Link>
-          </div>
+            <div className="grid w-full max-w-xl grid-cols-3 gap-2 sm:gap-3">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.08] p-3 backdrop-blur-md sm:p-5">
+                <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-400/15 text-emerald-300">
+                  <CalendarDays className="h-4 w-4" />
+                </div>
+                <p className="text-[10px] font-medium text-emerald-100/70 sm:text-xs">
+                  Events Created
+                </p>
+                <p className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">
+                  {stats.total}
+                </p>
+              </div>
 
-          <div className="mt-8 grid grid-cols-2 gap-3 sm:gap-4 max-w-md">
-            <div className="rounded-xl border border-border/70 bg-card p-3 sm:p-4 text-center">
-              <p className="text-xs text-muted-foreground font-medium">
-                Events Organized
-              </p>
-              <p className="text-2xl font-extrabold text-foreground mt-1">
-                {stats.total}
-              </p>
-            </div>
+              <div className="rounded-2xl border border-white/10 bg-white/[0.08] p-3 backdrop-blur-md sm:p-5">
+                <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-400/15 text-emerald-300">
+                  <Users className="h-4 w-4" />
+                </div>
+                <p className="text-[10px] font-medium text-emerald-100/70 sm:text-xs">
+                  Volunteers
+                </p>
+                <p className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">
+                  {stats.totalVolunteers}
+                </p>
+              </div>
 
-            <div className="rounded-xl border border-emerald-700/20 bg-emerald-50/50 dark:bg-emerald-950/30 p-3 sm:p-4 text-center">
-              <p className="text-xs text-emerald-800 dark:text-emerald-300 font-medium">
-                Total Volunteers
-              </p>
-              <p className="text-2xl font-extrabold text-emerald-700 dark:text-emerald-400 mt-1">
-                {stats.totalVolunteers}
-              </p>
+              <div className="rounded-2xl border border-white/10 bg-white/[0.08] p-3 backdrop-blur-md sm:p-5">
+                <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-400/15 text-emerald-300">
+                  <CalendarCheck className="h-4 w-4" />
+                </div>
+                <p className="text-[10px] font-medium text-emerald-100/70 sm:text-xs">
+                  Upcoming
+                </p>
+                <p className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">
+                  {stats.upcoming}
+                </p>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
+      {/* Main Content */}
       <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+        {/* Page Heading */}
+        <div className="mb-7 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700 dark:text-emerald-400">
+              <Sparkles className="h-3.5 w-3.5" />
+              Your activities
+            </div>
+
+            <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
+              My Events
+            </h2>
+
+            <p className="mt-1 text-sm text-muted-foreground">
+              All the events you have created in one place.
+            </p>
+          </div>
+        </div>
+
+        {/* Error State */}
         {error && (
-          <div className="mb-8 rounded-xl border border-destructive/30 bg-destructive/10 p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <AlertCircle className="h-5 w-5 text-destructive shrink-0" />
+          <div className="mb-8 flex flex-col justify-between gap-4 rounded-2xl border border-red-200 bg-red-50 p-5 dark:border-red-900/50 dark:bg-red-950/20 sm:flex-row sm:items-center">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300">
+                <AlertCircle className="h-5 w-5" />
+              </div>
 
               <div>
-                <p className="text-sm font-semibold text-destructive">
+                <p className="font-semibold text-red-700 dark:text-red-300">
                   Could not load your events
                 </p>
-                <p className="text-xs text-muted-foreground mt-0.5">
+                <p className="mt-1 text-sm text-red-700/70 dark:text-red-300/70">
                   {error}
                 </p>
               </div>
@@ -565,60 +652,65 @@ export default function ManageEventsPage() {
               variant="outline"
               size="sm"
               onClick={fetchMyEvents}
-              className="gap-2 border-destructive/40 text-destructive hover:bg-destructive/10 shrink-0"
+              disabled={loading}
+              className="shrink-0 gap-2 border-red-300 bg-white text-red-700 hover:bg-red-100 dark:border-red-900 dark:bg-transparent dark:text-red-300"
             >
               <RefreshCw className="h-3.5 w-3.5" />
-              Retry
+              Try Again
             </Button>
           </div>
         )}
 
+        {/* Loading Skeletons */}
         {loading && (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 3 }).map((_, idx) => (
+            {Array.from({ length: 3 }).map((_, index) => (
               <Card
-                key={idx}
-                className="overflow-hidden border border-border/60"
+                key={index}
+                className="overflow-hidden rounded-2xl border-border/60"
               >
-                <Skeleton className="h-44 w-full rounded-none" />
-
-                <CardHeader className="space-y-2 pb-2">
-                  <Skeleton className="h-4 w-28 rounded-full" />
-                  <Skeleton className="h-6 w-3/4 rounded" />
+                <Skeleton className="h-52 w-full rounded-none" />
+                <CardHeader className="space-y-3 p-5">
+                  <Skeleton className="h-4 w-28" />
+                  <Skeleton className="h-6 w-4/5" />
                 </CardHeader>
-
-                <CardContent className="space-y-2 pb-4">
+                <CardContent className="space-y-3 px-5 pb-5">
                   <Skeleton className="h-4 w-full" />
-                  <Skeleton className="h-4 w-1/2" />
+                  <Skeleton className="h-4 w-2/3" />
+                  <Skeleton className="h-9 w-full" />
                 </CardContent>
-
-                <CardFooter className="pt-2">
-                  <Skeleton className="h-9 w-full rounded-md" />
-                </CardFooter>
               </Card>
             ))}
           </div>
         )}
 
+        {/* Empty State */}
         {!loading && !error && myEvents.length === 0 && (
-          <div className="flex min-h-[40vh] flex-col items-center justify-center rounded-2xl border border-dashed border-border/80 bg-muted/20 px-6 py-16 text-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 mb-4">
-              <FolderKanban className="h-8 w-8" />
+          <div className="relative overflow-hidden rounded-3xl border border-dashed border-emerald-300/60 bg-white px-5 py-16 text-center shadow-sm dark:border-emerald-900/60 dark:bg-card sm:px-10">
+            <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-emerald-100/70 blur-3xl dark:bg-emerald-950/40" />
+            <div className="absolute -bottom-20 -left-16 h-48 w-48 rounded-full bg-emerald-100/70 blur-3xl dark:bg-emerald-950/40" />
+
+            <div className="relative mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+              <HeartHandshake className="h-10 w-10" />
             </div>
 
-            <h3 className="text-lg font-bold tracking-tight">
-              No Events Created Yet
-            </h3>
+            <div className="relative mt-6">
+              <Badge className="border-0 bg-emerald-100 text-emerald-800 hover:bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-300">
+                Your journey starts here
+              </Badge>
 
-            <p className="mt-1.5 max-w-sm text-sm text-muted-foreground">
-              You haven&apos;t created any community service events. Start a
-              cause in your neighborhood and invite volunteers to make an
-              impact!
-            </p>
+              <h3 className="mt-4 text-xl font-bold tracking-tight sm:text-2xl">
+                No Events Created Yet
+              </h3>
 
-            <div className="mt-6 flex gap-3">
-              <Link href="/create-event">
-                <Button className="bg-emerald-700 hover:bg-emerald-800 text-white gap-2 text-xs">
+              <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">
+                You haven&apos;t organized a community event yet. Start
+                something meaningful, bring people together, and make a
+                positive difference in your community.
+              </p>
+
+              <Link href="/create-event" className="mt-7 inline-flex">
+                <Button className="h-11 gap-2 rounded-xl bg-emerald-700 px-5 text-white hover:bg-emerald-800">
                   <PlusCircle className="h-4 w-4" />
                   Create Your First Event
                 </Button>
@@ -627,77 +719,109 @@ export default function ManageEventsPage() {
           </div>
         )}
 
+        {/* Event Cards */}
         {!loading && !error && myEvents.length > 0 && (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {myEvents.map((event) => {
-              const isDeletingThis =
-                isDeleting && deletingId === event._id;
+              const isDeletingThis = deletingId === event._id;
+              const upcoming = isUpcomingEvent(event.eventDate);
 
               return (
                 <Card
                   key={event._id}
-                  className="group flex flex-col overflow-hidden border border-border/70 hover:border-emerald-700/40 hover:shadow-md transition-all duration-300"
+                  className="group flex flex-col overflow-hidden rounded-2xl border border-border/70 bg-card py-0 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-emerald-600/40 hover:shadow-xl hover:shadow-emerald-950/5"
                 >
-                  {/* Thumbnail */}
-                  <div className="relative h-44 w-full overflow-hidden bg-muted">
+                  {/* Event Image */}
+                  <div className="relative h-52 overflow-hidden bg-muted">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={event.thumbnailURL || DEFAULT_EVENT_IMAGE}
                       alt={event.title}
                       referrerPolicy="no-referrer"
-                      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
                       onError={(e) => {
-                        (e.currentTarget as HTMLImageElement).src =
-                          DEFAULT_EVENT_IMAGE;
+                        const image = e.currentTarget;
+
+                        if (!image.src.includes("photo-1559027615")) {
+                          image.src = DEFAULT_EVENT_IMAGE;
+                        }
                       }}
                     />
 
-                    <div className="absolute top-3 left-3">
-                      <Badge className="bg-background/90 text-foreground backdrop-blur-md border border-border/40 font-semibold capitalize text-[11px] shadow-sm">
-                        <Tag className="h-3 w-3 mr-1 text-emerald-700" />
-                        {event.eventType}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/5 to-black/20" />
+
+                    <div className="absolute left-4 top-4">
+                      <Badge className="border border-white/30 bg-white/90 text-xs font-semibold text-slate-800 shadow-sm backdrop-blur-md hover:bg-white/90">
+                        <Tag className="mr-1.5 h-3 w-3 text-emerald-700" />
+                        <span className="capitalize">
+                          {getEventTypeLabel(event.eventType)}
+                        </span>
                       </Badge>
                     </div>
 
-                    <div className="absolute top-3 right-3">
-                      <Badge className="bg-emerald-700/90 text-white backdrop-blur-md text-[11px] font-medium shadow-sm">
-                        <Users className="h-3 w-3 mr-1" />
-                        {event.joinedCount || 0} Joined
+                    <div className="absolute right-4 top-4">
+                      <Badge
+                        className={
+                          upcoming
+                            ? "border border-emerald-300/30 bg-emerald-500/90 text-white shadow-sm backdrop-blur-md hover:bg-emerald-500/90"
+                            : "border border-white/20 bg-slate-800/80 text-white shadow-sm backdrop-blur-md hover:bg-slate-800/80"
+                        }
+                      >
+                        {upcoming ? (
+                          <CalendarCheck className="mr-1 h-3 w-3" />
+                        ) : (
+                          <Clock3 className="mr-1 h-3 w-3" />
+                        )}
+                        {upcoming ? "Upcoming" : "Completed"}
                       </Badge>
+                    </div>
+
+                    <div className="absolute bottom-4 left-4 right-4 flex items-end justify-between gap-3 text-white">
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-medium uppercase tracking-wider text-white/70">
+                          Event date
+                        </p>
+                        <p className="mt-1 flex items-center gap-1.5 text-sm font-semibold">
+                          <CalendarDays className="h-4 w-4 shrink-0" />
+                          <span>{formatEventDate(event.eventDate)}</span>
+                        </p>
+                      </div>
+
+                      <div className="flex shrink-0 items-center gap-1.5 rounded-full border border-white/20 bg-black/25 px-3 py-1.5 text-xs font-semibold backdrop-blur-md">
+                        <Users className="h-3.5 w-3.5" />
+                        {event.joinedCount ?? 0} Joined
+                      </div>
                     </div>
                   </div>
 
-                  <CardHeader className="pb-2">
-                    <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
-                      <CalendarDays className="h-3.5 w-3.5 shrink-0" />
-                      <span>{formatEventDate(event.eventDate)}</span>
-                    </div>
-
-                    <CardTitle className="text-base font-bold line-clamp-1 group-hover:text-emerald-700 transition-colors">
+                  {/* Event Information */}
+                  <CardHeader className="space-y-2 px-5 pb-2 pt-5">
+                    <CardTitle className="line-clamp-1 text-lg font-bold tracking-tight transition-colors group-hover:text-emerald-700 dark:group-hover:text-emerald-400">
                       {event.title}
                     </CardTitle>
                   </CardHeader>
 
-                  <CardContent className="space-y-2 flex-1 pb-4">
-                    <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+                  <CardContent className="flex flex-1 flex-col px-5 pb-4">
+                    <p className="line-clamp-2 min-h-10 text-sm leading-5 text-muted-foreground">
                       {event.description}
                     </p>
 
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground pt-1 border-t border-border/50">
-                      <MapPin className="h-3.5 w-3.5 shrink-0 text-emerald-700" />
+                    <div className="mt-4 flex items-center gap-2 border-t border-border/60 pt-3 text-xs text-muted-foreground">
+                      <MapPin className="h-4 w-4 shrink-0 text-emerald-700 dark:text-emerald-400" />
                       <span className="truncate">{event.location}</span>
                     </div>
                   </CardContent>
 
-                  <CardFooter className="flex items-center gap-2 pt-0 border-t border-border/40 p-3 bg-muted/10">
+                  {/* Card Actions */}
+                  <CardFooter className="grid grid-cols-3 items-center gap-2 border-t border-border/60 bg-muted/30 p-3">
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => handleOpenEdit(event)}
-                      className="flex-1 gap-1.5 text-xs font-medium border-border/80 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-700/40 dark:hover:bg-emerald-950/40"
+                      className="h-9 w-full gap-1.5 rounded-lg border-border bg-background text-xs font-semibold transition-colors hover:border-emerald-600/40 hover:bg-emerald-50 hover:text-emerald-800 dark:hover:bg-emerald-950/40 dark:hover:text-emerald-300"
                     >
-                      <Pencil className="h-3.5 w-3.5 text-emerald-700" />
-                      <span>Update</span>
+                      <Pencil className="h-3.5 w-3.5" />
+                      Edit Event
                     </Button>
 
                     <Button
@@ -705,25 +829,23 @@ export default function ManageEventsPage() {
                       size="sm"
                       disabled={isDeletingThis}
                       onClick={() => handleDeleteEvent(event)}
-                      className="gap-1.5 text-xs font-medium text-destructive border-destructive/20 hover:bg-destructive/10 hover:border-destructive/40"
+                      className="h-9 w-full gap-1.5 rounded-lg border-red-200 bg-background px-3 text-xs font-semibold text-red-600 hover:border-red-300 hover:bg-red-50 hover:text-red-700 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-950/30"
                     >
                       {isDeletingThis ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       ) : (
                         <Trash2 className="h-3.5 w-3.5" />
                       )}
-
-                      <span>Delete</span>
+                      Delete
                     </Button>
 
-                    <Link href={`/events/${event._id}`}>
+                    <Link href={`/events/${event._id}`} className="block">
                       <Button
-                        variant="ghost"
-                        size="icon"
-                        title="View Public Details"
-                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                        size="sm"
+                        className="h-9 w-full gap-1.5 rounded-lg bg-emerald-700 px-3 text-xs font-semibold text-white shadow-sm transition-all hover:bg-emerald-800"
                       >
-                        <ExternalLink className="h-3.5 w-3.5" />
+                        View Details
+                        <ArrowUpRight className="h-3.5 w-3.5" />
                       </Button>
                     </Link>
                   </CardFooter>
@@ -738,206 +860,245 @@ export default function ManageEventsPage() {
       <Dialog
         open={Boolean(editingEvent)}
         onOpenChange={(open) => {
-          if (!open && !isUpdating) {
-            setEditingEvent(null);
-          }
+          if (!open) handleCloseEdit();
         }}
       >
-        <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-bold flex items-center gap-2">
-              <Pencil className="h-5 w-5 text-emerald-700" />
-              Update Event
-            </DialogTitle>
+        <DialogContent className="max-h-[92vh] overflow-y-auto rounded-2xl border-border/70 p-0 sm:max-w-2xl">
+          {/* Dialog Header */}
+          <div className="border-b border-border/60 bg-emerald-50/70 px-6 py-5 dark:bg-emerald-950/20 sm:px-7">
+            <DialogHeader>
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300">
+                  <Pencil className="h-5 w-5" />
+                </div>
 
-            <DialogDescription>
-              Modify event information. Only you (the creator) can update this event.
-            </DialogDescription>
-          </DialogHeader>
+                <div>
+                  <DialogTitle className="text-xl font-bold tracking-tight">
+                    Update Event
+                  </DialogTitle>
+                  <DialogDescription className="mt-1 text-sm">
+                    Make changes to your community event details.
+                  </DialogDescription>
+                </div>
+              </div>
+            </DialogHeader>
+          </div>
 
-          <form onSubmit={handleUpdateEvent} className="space-y-4 py-2">
-            {/* Title */}
-            <div className="space-y-1.5">
-              <Label htmlFor="edit-title" className="text-sm font-medium">
-                Event Title <span className="text-destructive">*</span>
-              </Label>
-
-              <Input
-                id="edit-title"
-                value={editForm.title}
-                onChange={(e) =>
-                  setEditForm((prev) => ({
-                    ...prev,
-                    title: e.target.value,
-                  }))
-                }
-                placeholder="Event title"
-                disabled={isUpdating}
-                maxLength={120}
-                required
-              />
-            </div>
-
-            {/* Description */}
-            <div className="space-y-1.5">
-              <Label
-                htmlFor="edit-description"
-                className="text-sm font-medium"
-              >
-                Description <span className="text-destructive">*</span>
-              </Label>
-
-              <Textarea
-                id="edit-description"
-                value={editForm.description}
-                onChange={(e) =>
-                  setEditForm((prev) => ({
-                    ...prev,
-                    description: e.target.value,
-                  }))
-                }
-                placeholder="Event description..."
-                disabled={isUpdating}
-                rows={4}
-                maxLength={2000}
-                required
-              />
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              {/* Event Type */}
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium">
-                  Event Type <span className="text-destructive">*</span>
-                </Label>
-
-                <Select
-                  value={editForm.eventType}
-                  onValueChange={(val) =>
-                    setEditForm((prev) => ({
-                      ...prev,
-                      eventType: val ?? "",
-                    }))
-                  }
-                  disabled={isUpdating}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select type..." />
-                  </SelectTrigger>
-
-                  <SelectContent>
-                    {EVENT_TYPES.map((t) => (
-                      <SelectItem key={t.value} value={t.value}>
-                        {t.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+          <form
+            onSubmit={handleUpdateEvent}
+            className="space-y-6 px-6 py-6 sm:px-7"
+          >
+            {/* Basic Information */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <span className="flex h-6 w-6 items-center justify-center rounded-md bg-emerald-100 text-xs font-bold text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300">
+                  01
+                </span>
+                <h3 className="text-sm font-bold">Basic Information</h3>
               </div>
 
-              {/* Location */}
-              <div className="space-y-1.5">
+              <div className="space-y-2">
+                <Label htmlFor="edit-title" className="text-sm font-semibold">
+                  Event Title <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="edit-title"
+                  value={editForm.title}
+                  onChange={(e) => updateField("title", e.target.value)}
+                  placeholder="e.g. Community Tree Plantation"
+                  disabled={isUpdating}
+                  maxLength={120}
+                  required
+                  className="h-11 rounded-xl bg-background"
+                />
+                <p className="text-right text-[11px] text-muted-foreground">
+                  {editForm.title.length}/120 characters
+                </p>
+              </div>
+
+              <div className="space-y-2">
                 <Label
-                  htmlFor="edit-location"
-                  className="text-sm font-medium"
+                  htmlFor="edit-description"
+                  className="text-sm font-semibold"
                 >
-                  Location <span className="text-destructive">*</span>
+                  Event Description <span className="text-destructive">*</span>
                 </Label>
-
-                <Input
-                  id="edit-location"
-                  value={editForm.location}
-                  onChange={(e) =>
-                    setEditForm((prev) => ({
-                      ...prev,
-                      location: e.target.value,
-                    }))
-                  }
-                  placeholder="e.g. Mirpur 10, Dhaka"
+                <Textarea
+                  id="edit-description"
+                  value={editForm.description}
+                  onChange={(e) => updateField("description", e.target.value)}
+                  placeholder="Describe the purpose of your event, activities, and how people can participate..."
                   disabled={isUpdating}
+                  rows={4}
+                  maxLength={2000}
                   required
+                  className="resize-none rounded-xl bg-background leading-6"
                 />
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              {/* Event Date */}
-              <div className="space-y-1.5">
-                <Label htmlFor="edit-date" className="text-sm font-medium">
-                  Event Date <span className="text-destructive">*</span>
-                </Label>
-
-                <Input
-                  id="edit-date"
-                  type="date"
-                  value={editForm.eventDate}
-                  onChange={(e) =>
-                    setEditForm((prev) => ({
-                      ...prev,
-                      eventDate: e.target.value,
-                    }))
-                  }
-                  min={minDate || undefined}
-                  max="2030-12-31"
-                  disabled={isUpdating}
-                  required
-                />
-              </div>
-
-              {/* Required Thumbnail URL */}
-              <div className="space-y-1.5">
-                <Label
-                  htmlFor="edit-thumbnail"
-                  className="text-sm font-medium"
-                >
-                  Thumbnail Image URL{" "}
-                  <span className="text-destructive">*</span>
-                </Label>
-
-                <Input
-                  id="edit-thumbnail"
-                  type="url"
-                  value={editForm.thumbnailURL}
-                  onChange={(e) =>
-                    setEditForm((prev) => ({
-                      ...prev,
-                      thumbnailURL: e.target.value,
-                    }))
-                  }
-                  placeholder="https://images.unsplash.com/photo-..."
-                  disabled={isUpdating}
-                  required
-                />
-
-                <p className="text-xs text-muted-foreground">
-                  Required. Provide a valid image URL.
+                <p className="text-right text-[11px] text-muted-foreground">
+                  {editForm.description.length}/2000 characters
                 </p>
               </div>
             </div>
 
-            {/* Thumbnail Preview */}
-            {editForm.thumbnailURL.trim() && (
-              <div className="overflow-hidden rounded-lg border border-border/60 bg-muted/20">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={editForm.thumbnailURL.trim()}
-                  alt="Thumbnail preview"
-                  className="max-h-36 w-full object-cover"
-                  referrerPolicy="no-referrer"
-                  onError={(e) => {
-                    (e.currentTarget as HTMLImageElement).style.display =
-                      "none";
-                  }}
-                />
-              </div>
-            )}
+            <div className="border-t border-border/60" />
 
-            <DialogFooter className="pt-2 sm:justify-end gap-2">
+            {/* Event Details */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <span className="flex h-6 w-6 items-center justify-center rounded-md bg-emerald-100 text-xs font-bold text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300">
+                  02
+                </span>
+                <h3 className="text-sm font-bold">Event Details</h3>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold">
+                    Event Category <span className="text-destructive">*</span>
+                  </Label>
+
+                  <Select
+                    value={editForm.eventType}
+                    onValueChange={(value) => updateField("eventType", value)}
+                    disabled={isUpdating}
+                  >
+                    <SelectTrigger className="h-11 w-full rounded-xl bg-background">
+                      <SelectValue placeholder="Select category..." />
+                    </SelectTrigger>
+
+                    <SelectContent>
+                      {EVENT_TYPES.map((type) => (
+                        <SelectItem key={type.value} value={type.value}>
+                          {type.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="edit-location"
+                    className="text-sm font-semibold"
+                  >
+                    Event Location <span className="text-destructive">*</span>
+                  </Label>
+                  <div className="relative">
+                    <MapPin className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      id="edit-location"
+                      value={editForm.location}
+                      onChange={(e) => updateField("location", e.target.value)}
+                      placeholder="e.g. Mirpur 10, Dhaka"
+                      disabled={isUpdating}
+                      required
+                      className="h-11 rounded-xl bg-background pl-9"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="edit-date" className="text-sm font-semibold">
+                    Event Date <span className="text-destructive">*</span>
+                  </Label>
+                  <div className="relative">
+                    <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      id="edit-date"
+                      type="date"
+                      value={editForm.eventDate}
+                      onChange={(e) => updateField("eventDate", e.target.value)}
+                      min={minDate || undefined}
+                      disabled={isUpdating}
+                      required
+                      className="h-11 rounded-xl bg-background pl-9"
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Choose a future date for your event.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t border-border/60" />
+
+            {/* Event Image */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <span className="flex h-6 w-6 items-center justify-center rounded-md bg-emerald-100 text-xs font-bold text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300">
+                  03
+                </span>
+                <h3 className="text-sm font-bold">Event Thumbnail</h3>
+              </div>
+
+              <div className="space-y-2">
+                <Label
+                  htmlFor="edit-thumbnail"
+                  className="text-sm font-semibold"
+                >
+                  Thumbnail Image URL{" "}
+                  <span className="text-destructive">*</span>
+                </Label>
+                <div className="relative">
+                  <ImageIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    id="edit-thumbnail"
+                    type="url"
+                    value={editForm.thumbnailURL}
+                    onChange={(e) => updateField("thumbnailURL", e.target.value)}
+                    placeholder="https://example.com/event-image.jpg"
+                    disabled={isUpdating}
+                    required
+                    className="h-11 rounded-xl bg-background pl-9"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Use a direct image URL starting with http:// or https://.
+                </p>
+              </div>
+
+              {editForm.thumbnailURL.trim() && (
+                <div className="relative overflow-hidden rounded-xl border border-border/70 bg-muted/30">
+                  {!thumbnailPreviewError ? (
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={editForm.thumbnailURL.trim()}
+                        alt="Event thumbnail preview"
+                        referrerPolicy="no-referrer"
+                        className="h-44 w-full object-cover"
+                        onError={() => setThumbnailPreviewError(true)}
+                      />
+                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-4 pb-3 pt-8">
+                        <p className="text-xs font-medium text-white">
+                          Image Preview
+                        </p>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex min-h-32 flex-col items-center justify-center gap-2 p-5 text-center">
+                      <ImageIcon className="h-8 w-8 text-muted-foreground" />
+                      <p className="text-sm font-semibold">
+                        Unable to load image
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Check the URL or try another image.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Dialog Actions */}
+            <DialogFooter className="flex-col-reverse gap-2 border-t border-border/60 pt-5 sm:flex-row sm:justify-between">
               <Button
                 type="button"
-                variant="outline"
+                variant="ghost"
                 disabled={isUpdating}
-                onClick={() => setEditingEvent(null)}
+                onClick={handleCloseEdit}
+                className="h-11 rounded-xl"
               >
                 Cancel
               </Button>
@@ -945,12 +1106,12 @@ export default function ManageEventsPage() {
               <Button
                 type="submit"
                 disabled={isUpdating}
-                className="bg-emerald-700 hover:bg-emerald-800 text-white gap-1.5"
+                className="h-11 gap-2 rounded-xl bg-emerald-700 px-6 font-semibold text-white shadow-sm hover:bg-emerald-800"
               >
                 {isUpdating ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Saving...
+                    Saving Changes...
                   </>
                 ) : (
                   <>
