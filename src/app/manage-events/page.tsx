@@ -959,7 +959,7 @@ export default function ManageEventsPage() {
 
                   <Select
                     value={editForm.eventType}
-                    onValueChange={(value) => updateField("eventType", value)}
+                    onValueChange={(value) => updateField("eventType", value ?? "")}
                     disabled={isUpdating}
                   >
                     <SelectTrigger className="h-11 w-full rounded-xl bg-background">
