@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useSyncExternalStore } from "react";
 import {
   Eye,
   EyeOff,
@@ -22,6 +22,20 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
+const subscribeToNothing = () => () => {};
+
+function getRegisterHref() {
+  const raw = new URLSearchParams(window.location.search).get("callbackUrl");
+  if (raw && raw.startsWith("/") && !raw.startsWith("//")) {
+    return `/register?callbackUrl=${encodeURIComponent(raw)}`;
+  }
+  return "/register";
+}
+
+function getRegisterHrefServer() {
+  return "/register";
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const { data: session, isPending, refetch } = useSession();
@@ -31,6 +45,11 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSocialLoading, setIsSocialLoading] = useState<string | null>(null);
+  const registerHref = useSyncExternalStore(
+    subscribeToNothing,
+    getRegisterHref,
+    getRegisterHrefServer
+  );
 
   const getCallbackUrl = () => {
     if (typeof window === "undefined") return "/";
@@ -387,7 +406,7 @@ export default function LoginPage() {
                 <p className="pt-1 text-center text-sm text-muted-foreground sm:pt-2">
                   Don&apos;t have an account?{" "}
                   <Link
-                    href={`/register${typeof window !== "undefined" ? window.location.search : ""}`}
+                    href={registerHref}
                     className="inline-block py-1 font-bold text-emerald-700 transition-colors hover:text-emerald-800 hover:underline"
                   >
                     Create an account

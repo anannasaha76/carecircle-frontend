@@ -34,7 +34,8 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 - Better Auth server config: `src/lib/auth.ts` (Mongo adapter, `jwt` plugin, extra `photoURL` user field). Client: `src/lib/auth-client.ts`. Handler: `src/app/api/auth/[...all]/route.ts`.
 - Protected backend calls send the Better Auth JWT as `Authorization: Bearer`: `getTokenFromClient()` in components, `getTokenFromServer()` in server code.
-- Protected pages redirect client-side to `/login?callbackUrl=...`; there is no central route guard. `src/proxy.ts` is Next 16's renamed middleware and only matches `/login` and `/signup` — the register page is `/register`.
+- `src/proxy.ts` (Next 16's renamed middleware) centrally guards `/create-event`, `/manage-events`, and `/joined-events`, redirecting unauthenticated visitors to `/login?callbackUrl=...`. Auth pages (`/login`, `/signup`) redirect authenticated users back to the app. Protected pages also keep client-side fallback redirects. The register page is `/register`.
+- Social sign-in success toast is a two-part contract: the login page writes `SOCIAL_LOGIN_KEY` (exported from `src/components/providers/SocialLoginToast.tsx`) to `sessionStorage` before `signIn.social` redirects away, and the global `SocialLoginToast` watcher mounted in `layout.tsx` clears the flag and fires the toast once a session loads. Any new social provider must set/clear this flag or the toast breaks.
 
 ## Backend API contract (`NEXT_PUBLIC_API_URL`)
 
